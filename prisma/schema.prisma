@@ -31,6 +31,8 @@ model Entry {
   completedDate     DateTime? @db.Date
   deletedDate       DateTime? @db.Date
   deleteReason      String?
+  fileUrl           String?
+  fileName          String?
   createdByEmail    String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt

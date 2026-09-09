@@ -235,6 +235,8 @@
   .entry-completed-date{margin-top:5px; font-size:12px; color:var(--done);}
   .entry-deleted-note{margin-top:5px; font-size:12px; color:var(--danger);}
   .entry-contact-note{margin-top:8px; font-size:10.5px; color:var(--ink-soft); font-style:italic;}
+  .entry-attachment{margin-top:6px; font-size:12.5px;}
+  .entry-attachment a{color:var(--accent); text-decoration:underline;}
   .entry-actions{display:flex; flex-direction:column; gap:6px; flex-shrink:0; min-width:118px; align-items:stretch;}
   .entry-actions .row{display:flex; gap:6px;}
   .partial-edit{margin-top:10px; display:flex; gap:8px;}
@@ -485,6 +487,7 @@ function entryToExportRow(e, includeProjectLabel){
   row['Περιγραφή'] = e.description || '';
   row['Στοιχεία επικοινωνίας'] = e.contactInfo || '';
   row['Επικοινωνία με'] = e.contactPersonName || '';
+  row['Σύνδεσμος αρχείου'] = e.fileUrl ? (window.location.origin + attachmentViewUrl(e)) : '';
   if(e.status === 'partial') row['Σχόλια μερικής εκτέλεσης'] = notes.map(n => `${toDisplayDate(n.date)}: ${n.text}`).join(' | ');
   if(e.status === 'done') row['Ολοκληρώθηκε στις'] = toDisplayDate(e.completedDate);
   if(e.status === 'deleted'){ row['Διαγράφηκε στις'] = toDisplayDate(e.deletedDate); row['Αιτιολογία διαγραφής'] = e.deleteReason || ''; }
@@ -831,6 +834,8 @@ function rowToEntry(row){
     completedDate: normDate(row.completedDate),
     deletedDate: normDate(row.deletedDate),
     deleteReason: row.deleteReason || null,
+    fileUrl: row.fileUrl || null,
+    fileName: row.fileName || null,
   };
 }
 
@@ -973,7 +978,7 @@ function currentEntries(){
   return state.entries[state.currentProject] || [];
 }
 
-async function addEntry(projectId, date, lastName, firstName, afm, supplyNumber, contactInfo, contactPersonName, description){
+async function addEntry(projectId, date, lastName, firstName, afm, supplyNumber, contactInfo, contactPersonName, description, fileUrl, fileName){
   if(state.entries[projectId] === undefined){
     await loadEntries(projectId);
   }
@@ -981,7 +986,8 @@ async function addEntry(projectId, date, lastName, firstName, afm, supplyNumber,
     id: uid(), date, lastName: lastName.trim(), firstName: firstName.trim(), afm: (afm||'').trim(),
     supplyNumber: supplyNumber.trim(), contactInfo: (contactInfo||'').trim(), contactPersonName: (contactPersonName||'').trim(),
     description: description.trim(),
-    status: 'pending', partialNotes: [], completedDate: null
+    status: 'pending', partialNotes: [], completedDate: null,
+    fileUrl: fileUrl || null, fileName: fileName || null
   };
   const list = state.entries[projectId] || [];
   list.push(entry);
@@ -994,12 +1000,39 @@ async function addEntry(projectId, date, lastName, firstName, afm, supplyNumber,
       body: JSON.stringify({
         id: entry.id, projectId, date, lastName: entry.lastName, firstName: entry.firstName,
         afm: entry.afm, supplyNumber: entry.supplyNumber, contactInfo: entry.contactInfo,
-        contactPersonName: entry.contactPersonName, description: entry.description
+        contactPersonName: entry.contactPersonName, description: entry.description,
+        fileUrl: entry.fileUrl, fileName: entry.fileName
       })
     });
     return res.ok;
   }catch(err){
     return false;
+  }
+}
+
+// Uploads a File to Blob storage and returns {url, name}. Takes the File
+// object itself (not the <input>) since the caller typically needs to
+// clear the input's value right away, which would also clear its
+// .files — capturing the File first keeps it valid regardless.
+async function uploadAttachment(file){
+  if(!file) return {url: null, name: null, failed: false};
+  if(file.size > 4 * 1024 * 1024){
+    showToast('Το αρχείο είναι πολύ μεγάλο (μέχρι 4MB).');
+    return {url: null, name: null, failed: true};
+  }
+  const fd = new FormData();
+  fd.append('file', file);
+  try{
+    const res = await fetch('/api/upload', {method: 'POST', body: fd});
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok){
+      showToast(data.error || 'Το ανέβασμα του αρχείου απέτυχε.');
+      return {url: null, name: null, failed: true};
+    }
+    return {url: data.url, name: data.name, failed: false};
+  }catch(err){
+    showToast('Το ανέβασμα του αρχείου απέτυχε — δοκίμασε ξανά.');
+    return {url: null, name: null, failed: true};
   }
 }
 
@@ -1201,6 +1234,15 @@ function renderPartialNotes(e){
   ).join('')}</div>`;
 }
 
+function attachmentViewUrl(e){
+  return '/api/files/' + encodeURIComponent(e.id);
+}
+
+function renderAttachmentLink(e){
+  if(!e.fileUrl) return '';
+  return `<div class="entry-attachment"><a href="${esc(attachmentViewUrl(e))}" target="_blank" rel="noopener">📎 ${esc(e.fileName || 'Αρχείο')}</a></div>`;
+}
+
 function renderEntry(e, projectId, priority, opts={}){
   const cls = e.status === 'partial' ? 'partial' : (e.status === 'done' ? 'done' : (e.status === 'deleted' ? 'deleted' : ''));
   let extra = '';
@@ -1258,6 +1300,18 @@ function renderEntry(e, projectId, priority, opts={}){
           <div class="field"><label>Επικοινωνία με</label><input type="text" id="edit-contact-name" value="${esc(e.contactPersonName||'')}"></div>
         </div>
         <div class="field"><label>Περιγραφή αλλαγής</label><textarea id="edit-desc" rows="2">${esc(e.description)}</textarea></div>
+        <div class="field">
+          <label>📎 Επισυναπτόμενο αρχείο</label>
+          ${e.fileUrl ? `
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+              <a href="${esc(attachmentViewUrl(e))}" target="_blank" rel="noopener" style="font-size:12.5px;">${esc(e.fileName || 'Τρέχον αρχείο')}</a>
+              <label style="display:flex; align-items:center; gap:4px; font-size:11.5px; color:var(--ink-soft); font-weight:400;">
+                <input type="checkbox" id="edit-remove-file"> Αφαίρεση
+              </label>
+            </div>` : ''}
+          <input type="file" id="edit-attachment" accept="application/pdf,image/*">
+          <div class="field-hint">${e.fileUrl ? 'Διάλεξε νέο αρχείο για αντικατάσταση, ή άφησέ το κενό.' : 'PDF ή εικόνα, έως 4MB.'}</div>
+        </div>
         <div style="display:flex; gap:8px;">
           <button class="btn btn-sm btn-primary" data-action="edit-save" data-id="${e.id}" data-project="${projectId}">Αποθήκευση</button>
           <button class="btn btn-sm btn-quiet" data-action="edit-cancel">Άκυρο</button>
@@ -1276,6 +1330,7 @@ function renderEntry(e, projectId, priority, opts={}){
         <div class="entry-name">${renderName(e)}${e.status==='partial' ? '<span class="badge-partial">Μερική</span>' : ''}${staleBadge}${projectBadge}</div>
         <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', e.contactInfo ? esc(e.contactInfo) : ''].filter(Boolean).join(' · ')}</div>
         <div class="entry-desc">${esc(e.description)}</div>
+        ${renderAttachmentLink(e)}
         ${extra}
         ${editBox}
       </div>
@@ -1316,6 +1371,7 @@ function renderSearchResult(e, proj, priority){
           <span class="badge-partial" style="margin-left:4px;">${STATUS_LABEL[e.status]}</span>
         </div>
         <div class="entry-desc">${esc(e.description)}</div>
+        ${renderAttachmentLink(e)}
         ${extra}
       </div>
       <div class="entry-actions">
@@ -1736,6 +1792,10 @@ function renderHome(){
           <label for="in-desc">Περιγραφή αλλαγής</label>
           <textarea id="in-desc" rows="3" placeholder="π.χ. Αύξηση ισχύος κατά 1kW"></textarea>
         </div>
+        <div class="field">
+          <label for="in-attachment">📎 Επισύναψη αρχείου <span style="font-weight:400; opacity:.75;">(προαιρετικό — PDF ή εικόνα, έως 4MB)</span></label>
+          <input type="file" id="in-attachment" accept="application/pdf,image/*">
+        </div>
         <button class="btn btn-primary btn-block" id="btn-add">+ Καταχώρηση αιτήματος</button>
       </div>
     </div>`;
@@ -2077,16 +2137,27 @@ document.addEventListener('click', async (ev)=>{
       const contactInfo = document.getElementById('edit-contact').value.trim();
       const contactPersonName = document.getElementById('edit-contact-name').value.trim();
       const description = document.getElementById('edit-desc').value;
+      const attachmentInput = document.getElementById('edit-attachment');
+      const attachmentFile = (attachmentInput && attachmentInput.files && attachmentInput.files[0]) || null;
+      const removeFileEl = document.getElementById('edit-remove-file');
+      const removeFile = !!(removeFileEl && removeFileEl.checked);
       if(!lastName.trim() || !firstName.trim()){ showToast('Συμπλήρωσε επώνυμο και όνομα.'); return; }
       if(!supplyNumber){ showToast('Συμπλήρωσε τον αριθμό παροχής.'); return; }
       if(afm && !/^\d{9}$/.test(afm)){ showToast('Το ΑΦΜ πρέπει να έχει ακριβώς 9 ψηφία.'); return; }
       if(supplyNumber && !/^\d{1,11}$/.test(supplyNumber)){ showToast('Ο αριθμός παροχής πρέπει να έχει έως 11 ψηφία.'); return; }
       if(!contactInfo){ showToast('Συμπλήρωσε στοιχεία επικοινωνίας.'); return; }
       if(!description.trim()){ showToast('Συμπλήρωσε περιγραφή αλλαγής.'); return; }
-      updateEntryFields(id, pid, {
+      const fields = {
         lastName: lastName.trim(), firstName: firstName.trim(), afm, supplyNumber,
         contactInfo, contactPersonName, description: description.trim()
-      });
+      };
+      if(attachmentFile){
+        const {url: fileUrl, name: fileName} = await uploadAttachment(attachmentFile);
+        if(fileUrl){ fields.fileUrl = fileUrl; fields.fileName = fileName; }
+      } else if(removeFile){
+        fields.fileUrl = null; fields.fileName = null;
+      }
+      updateEntryFields(id, pid, fields);
     }
     else if(action==='open-in-project'){
       state.currentProject = id;
@@ -2117,6 +2188,8 @@ document.addEventListener('click', async (ev)=>{
     const contact = document.getElementById('in-contact').value;
     const contactName = document.getElementById('in-contact-name').value;
     const desc = document.getElementById('in-desc').value;
+    const attachmentInput = document.getElementById('in-attachment');
+    const attachmentFile = (attachmentInput && attachmentInput.files && attachmentInput.files[0]) || null;
     if(!supplyNumber.trim()){
       showToast('Συμπλήρωσε τον αριθμό παροχής.');
       return;
@@ -2153,8 +2226,10 @@ document.addEventListener('click', async (ev)=>{
       const dt = document.getElementById('in-date'); if(dt) dt.value = todayISO();
       const sug = document.getElementById('contact-suggestions'); if(sug){ sug.style.display='none'; sug.innerHTML=''; }
       const dw = document.getElementById('dup-warning'); if(dw) dw.style.display='none';
+      const att = document.getElementById('in-attachment'); if(att) att.value='';
     }, 0);
-    const entrySaved = await addEntry(projectId, date, lastName, firstName, afm, supplyNumber, contact, contactName, desc);
+    const {url: fileUrl, name: fileName} = await uploadAttachment(attachmentFile);
+    const entrySaved = await addEntry(projectId, date, lastName, firstName, afm, supplyNumber, contact, contactName, desc, fileUrl, fileName);
     const contactSaved = await addOrUpdateContact(lastName, firstName, afm, contact, contactName, projectId);
     state.submitting = false;
     if(entrySaved && contactSaved){

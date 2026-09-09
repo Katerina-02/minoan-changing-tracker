@@ -43,6 +43,8 @@ export async function POST(request: NextRequest) {
       description: body.description,
       status: "pending",
       partialNotes: [],
+      fileUrl: body.fileUrl || null,
+      fileName: body.fileName || null,
       createdByEmail: session?.email ?? null,
     },
   });

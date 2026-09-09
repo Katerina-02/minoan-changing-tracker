@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { del } from "@vercel/blob";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,8 @@ const PATCHABLE_FIELDS = [
   "completedDate",
   "deletedDate",
   "deleteReason",
+  "fileUrl",
+  "fileName",
 ] as const;
 
 export async function PATCH(
@@ -35,12 +38,20 @@ export async function PATCH(
     }
   }
 
-  try {
-    const row = await db.entry.update({ where: { id }, data });
-    return NextResponse.json(row);
-  } catch {
+  const existing = await db.entry.findUnique({ where: { id } });
+  if (!existing) {
     return NextResponse.json({ error: "Entry not found" }, { status: 404 });
   }
+
+  const row = await db.entry.update({ where: { id }, data });
+
+  // If the attachment was replaced or removed, clean up the old blob so it
+  // doesn't sit around unreferenced forever.
+  if ("fileUrl" in data && existing.fileUrl && existing.fileUrl !== data.fileUrl) {
+    await del(existing.fileUrl).catch(() => {});
+  }
+
+  return NextResponse.json(row);
 }
 
 // Permanent delete is only ever offered in the UI for already
@@ -64,5 +75,8 @@ export async function DELETE(
   }
 
   await db.entry.delete({ where: { id } });
+  if (existing.fileUrl) {
+    await del(existing.fileUrl).catch(() => {});
+  }
   return NextResponse.json({ ok: true });
 }
