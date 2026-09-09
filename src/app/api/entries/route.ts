@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 
+// Multiple people poll these endpoints for live changes — never let the
+// platform or a browser cache a stale response.
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   const projectId = request.nextUrl.searchParams.get("projectId");
   if (!projectId) {
@@ -11,7 +15,7 @@ export async function GET(request: NextRequest) {
     where: { projectId },
     orderBy: { date: "asc" },
   });
-  return NextResponse.json(rows);
+  return NextResponse.json(rows, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: NextRequest) {

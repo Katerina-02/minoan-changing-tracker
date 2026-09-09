@@ -425,6 +425,8 @@ const state = {
   contactsLoading: false,
   deletingId: null,
   deletingProjectId: null,
+  permanentDeleteId: null,
+  permanentDeleteProjectId: null,
   editingPartialId: null,
   editingPartialProjectId: null,
   editingEntryId: null,
@@ -862,7 +864,7 @@ async function loadEntries(projectId){
   render();
   let list = [];
   try{
-    const res = await fetch('/api/entries?projectId=' + encodeURIComponent(projectId));
+    const res = await fetch('/api/entries?projectId=' + encodeURIComponent(projectId), {cache: 'no-store'});
     if(!res.ok) throw new Error('load failed');
     const rows = await res.json();
     list = rows.map(rowToEntry);
@@ -879,7 +881,7 @@ async function loadEntries(projectId){
 // screen in sync without disturbing whatever they're doing.
 async function refreshEntries(projectId){
   try{
-    const res = await fetch('/api/entries?projectId=' + encodeURIComponent(projectId));
+    const res = await fetch('/api/entries?projectId=' + encodeURIComponent(projectId), {cache: 'no-store'});
     if(!res.ok) return;
     const rows = await res.json();
     state.entries[projectId] = rows.map(rowToEntry);
@@ -893,7 +895,7 @@ async function loadContacts(){
   render();
   let list = [];
   try{
-    const res = await fetch('/api/contacts');
+    const res = await fetch('/api/contacts', {cache: 'no-store'});
     if(!res.ok) throw new Error('load failed');
     const rows = await res.json();
     list = rows.map(rowToContact);
@@ -907,7 +909,7 @@ async function loadContacts(){
 
 async function refreshContacts(){
   try{
-    const res = await fetch('/api/contacts');
+    const res = await fetch('/api/contacts', {cache: 'no-store'});
     if(!res.ok) return;
     const rows = await res.json();
     state.contacts = rows.map(rowToContact);
@@ -1066,6 +1068,22 @@ async function revertDeleted(id, projectId){
   if(!ok) showToast('Η αποθήκευση απέτυχε — δοκίμασε ξανά.');
 }
 
+async function permanentlyDeleteEntry(id, projectId){
+  const list = state.entries[projectId] || [];
+  const idx = list.findIndex(x=>x.id===id);
+  if(idx === -1) return;
+  list.splice(idx, 1);
+  state.permanentDeleteId = null;
+  state.permanentDeleteProjectId = null;
+  render();
+  try{
+    const res = await fetch('/api/entries/' + encodeURIComponent(id), { method: 'DELETE' });
+    if(!res.ok) showToast('Η οριστική διαγραφή απέτυχε — δοκίμασε ξανά.');
+  }catch(err){
+    showToast('Η οριστική διαγραφή απέτυχε — δοκίμασε ξανά.');
+  }
+}
+
 async function updateEntryFields(id, projectId, fields){
   const list = state.entries[projectId] || [];
   const e = list.find(x=>x.id===id);
@@ -1082,6 +1100,8 @@ function switchProject(id){
   state.currentProject = id;
   state.deletingId = null;
   state.deletingProjectId = null;
+  state.permanentDeleteId = null;
+  state.permanentDeleteProjectId = null;
   state.editingPartialId = null;
   state.editingPartialProjectId = null;
   state.viewSearchQuery = '';
@@ -1097,6 +1117,8 @@ function goToPage(page){
   state.page = page;
   state.deletingId = null;
   state.deletingProjectId = null;
+  state.permanentDeleteId = null;
+  state.permanentDeleteProjectId = null;
   state.editingPartialId = null;
   state.editingPartialProjectId = null;
   if(page === 'view'){
@@ -1123,6 +1145,16 @@ function isStale(e){
 }
 
 function renderEntryActions(e, projectId){
+  if(state.permanentDeleteId === e.id && state.permanentDeleteProjectId === projectId){
+    return `
+      <div class="delete-reason-box">
+        <div style="font-size:12.5px; color:var(--danger);">Οριστική διαγραφή — δεν μπορεί να αναιρεθεί. Σίγουρα;</div>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-sm btn-danger" data-action="permanent-delete-confirm" data-id="${e.id}" data-project="${projectId}">Ναι, διαγραφή οριστικά</button>
+          <button class="btn btn-sm btn-quiet" data-action="permanent-delete-cancel">Άκυρο</button>
+        </div>
+      </div>`;
+  }
   if(state.deletingId === e.id && state.deletingProjectId === projectId){
     return `
       <div class="delete-reason-box">
@@ -1136,7 +1168,10 @@ function renderEntryActions(e, projectId){
   const editButton = `<button class="btn btn-sm btn-quiet" data-action="edit-open" data-id="${e.id}" data-project="${projectId}">✎ Επεξεργασία</button>`;
   const receiptButton = `<button class="btn btn-sm btn-quiet" data-action="download-receipt" data-id="${e.id}" data-project="${projectId}">⬇ Εκτύπωση</button>`;
   if(e.status === 'deleted'){
-    return `<button class="btn btn-sm btn-quiet" data-action="revert-deleted" data-id="${e.id}" data-project="${projectId}">↺ Επαναφορά</button>`;
+    return `
+      <button class="btn btn-sm btn-quiet" data-action="revert-deleted" data-id="${e.id}" data-project="${projectId}">↺ Επαναφορά</button>
+      <button class="btn btn-sm btn-danger" data-action="permanent-delete-ask" data-id="${e.id}" data-project="${projectId}">🗑 Οριστική διαγραφή</button>
+    `;
   }
   if(e.status === 'done'){
     return `
@@ -1736,6 +1771,17 @@ function entryMatchesQuery(e, q){
     || (e.supplyNumber && e.supplyNumber.toLowerCase().includes(q));
 }
 
+// Keeps a collapsed "Ολοκληρωμένες"/"Διαγραμμένες" <details> section open
+// across re-renders whenever one of its entries has an inline action open
+// (delete confirm, permanent-delete confirm, edit form, partial-note box) —
+// otherwise the whole innerHTML rebuild would collapse it shut and hide
+// whatever the user is in the middle of.
+function hasActiveModalIn(list){
+  const activeIds = [state.deletingId, state.permanentDeleteId, state.editingEntryId, state.editingPartialId].filter(Boolean);
+  if(!activeIds.length) return false;
+  return list.some(item => activeIds.includes((item.e || item).id));
+}
+
 function renderView(){
   const isAll = state.currentProject === ALL_ID;
   const proj = isAll ? null : PROJECTS.find(p=>p.id===state.currentProject);
@@ -1842,12 +1888,12 @@ function renderView(){
           ${pendingHtml}
         </section>
 
-        <details class="completed-wrap" style="margin-bottom:10px;" ${hasFilter && combinedDone.length ? 'open' : ''}>
+        <details class="completed-wrap" style="margin-bottom:10px;" ${(hasFilter && combinedDone.length) || hasActiveModalIn(combinedDone) ? 'open' : ''}>
           <summary>Ολοκληρωμένες (${combinedDone.length}) <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="all-done" style="margin-left:10px;">⬇ Excel</button></summary>
           <div class="completed-body">${doneHtml}</div>
         </details>
 
-        <details class="completed-wrap" ${hasFilter && combinedDeleted.length ? 'open' : ''}>
+        <details class="completed-wrap" ${(hasFilter && combinedDeleted.length) || hasActiveModalIn(combinedDeleted) ? 'open' : ''}>
           <summary>Διαγραμμένες (${combinedDeleted.length}) <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="all-deleted" style="margin-left:10px;">⬇ Excel</button></summary>
           <div class="completed-body">${deletedHtml}</div>
         </details>
@@ -1908,12 +1954,12 @@ function renderView(){
         ${pendingHtml}
       </section>
 
-      <details class="completed-wrap" style="margin-bottom:10px;" ${hasFilter && done.length ? 'open' : ''}>
+      <details class="completed-wrap" style="margin-bottom:10px;" ${(hasFilter && done.length) || hasActiveModalIn(done) ? 'open' : ''}>
         <summary>Ολοκληρωμένες (${done.length}) <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="done" style="margin-left:10px;">⬇ Excel</button></summary>
         <div class="completed-body">${doneHtml}</div>
       </details>
 
-      <details class="completed-wrap" ${hasFilter && deleted.length ? 'open' : ''}>
+      <details class="completed-wrap" ${(hasFilter && deleted.length) || hasActiveModalIn(deleted) ? 'open' : ''}>
         <summary>Διαγραμμένες (${deleted.length}) <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="deleted" style="margin-left:10px;">⬇ Excel</button></summary>
         <div class="completed-body">${deletedHtml}</div>
       </details>
@@ -2007,6 +2053,15 @@ document.addEventListener('click', async (ev)=>{
       if(!reason.trim()){ showToast('Γράψε την αιτιολογία διαγραφής.'); return; }
       deleteEntry(id, reason, pid);
     }
+    else if(action==='permanent-delete-ask'){
+      state.permanentDeleteId = id; state.permanentDeleteProjectId = pid;
+      state.deletingId = null; state.deletingProjectId = null;
+      state.editingPartialId = null; state.editingPartialProjectId = null;
+      state.editingEntryId = null; state.editingEntryProjectId = null;
+      render();
+    }
+    else if(action==='permanent-delete-cancel'){ state.permanentDeleteId = null; state.permanentDeleteProjectId = null; render(); }
+    else if(action==='permanent-delete-confirm') permanentlyDeleteEntry(id, pid);
     else if(action==='edit-open'){
       state.editingEntryId = id; state.editingEntryProjectId = pid;
       state.editingPartialId = null; state.editingPartialProjectId = null;

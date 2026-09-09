@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 const PATCHABLE_FIELDS = [
   "lastName",
   "firstName",
@@ -39,4 +41,28 @@ export async function PATCH(
   } catch {
     return NextResponse.json({ error: "Entry not found" }, { status: 404 });
   }
+}
+
+// Permanent delete is only ever offered in the UI for already
+// soft-deleted entries (status "deleted") — enforce that here too,
+// so a stray API call can't hard-delete an active request.
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  const existing = await db.entry.findUnique({ where: { id } });
+  if (!existing) {
+    return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+  }
+  if (existing.status !== "deleted") {
+    return NextResponse.json(
+      { error: "Only already-deleted entries can be permanently deleted" },
+      { status: 400 }
+    );
+  }
+
+  await db.entry.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
 }

@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 
+// Multiple people poll these endpoints for live changes — never let the
+// platform or a browser cache a stale response.
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const rows = await db.contact.findMany({ orderBy: { lastName: "asc" } });
-  return NextResponse.json(rows);
+  return NextResponse.json(rows, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: NextRequest) {
