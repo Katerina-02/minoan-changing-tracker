@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Αλλαγές παροχών — Μινώα Ενεργειακή",
+  title: "ΜΙΝΩΑ — Σύστημα Διαχείρισης",
   description: "Καταγραφή αιτημάτων αλλαγών παροχών",
 };
 
