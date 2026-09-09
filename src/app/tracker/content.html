@@ -1,0 +1,2311 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Καταγραφή Αλλαγών Παροχών</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F6F8FA;
+    --surface:#FFFFFF;
+    --ink:#16232D;
+    --ink-soft:#5C6B77;
+    --line:#E0E6EB;
+
+    --accent:#1868DB;
+    --accent-dark:#124F9E;
+    --accent-soft:#E8F0FE;
+
+    --partial:#F2790A;
+    --partial-bg:#FFF0DE;
+    --partial-line:#FFD199;
+
+    --done:#189A57;
+    --done-bg:#E6F7ED;
+    --done-line:#BCE9CE;
+
+    --danger:#D64545;
+    --danger-bg:#FBEAEA;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', system-ui, sans-serif;
+    font-size:15px;
+    line-height:1.5;
+    min-height:100vh;
+  }
+  h1,h2,h3{font-family:'IBM Plex Serif', Georgia, serif; font-weight:600; margin:0;}
+  .shell{max-width:1180px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column;}
+
+  .brand-ribbon{
+    height:5px; flex-shrink:0;
+    background:linear-gradient(90deg, var(--accent) 0%, var(--accent) 28%, var(--done) 50%, var(--done) 68%, var(--partial) 100%);
+  }
+
+  /* Top nav */
+  .topnav{
+    display:flex; align-items:baseline; gap:22px;
+    padding:26px 24px 18px;
+    border-bottom:1px solid var(--line);
+  }
+  .topnav h1{font-size:19px; margin-right:auto; letter-spacing:.2px;}
+  .topnav .wordmark-sub{font-family:'IBM Plex Serif', serif; font-style:italic; font-size:12.5px; color:var(--ink-soft); margin-left:8px; font-weight:400;}
+  .navbtn{
+    font-family:inherit; font-size:13.5px; font-weight:500;
+    padding:4px 2px 10px; border:none; border-bottom:2.5px solid transparent;
+    background:transparent; color:var(--ink-soft);
+    cursor:pointer;
+  }
+  .navbtn.active{color:var(--ink); border-bottom-color:var(--accent);}
+  .navbtn:hover:not(.active){color:var(--ink);}
+  .user-chip{font-size:12px; color:var(--ink-soft); margin-left:14px; white-space:nowrap;}
+  .logout-form{margin:0;}
+
+  .page{flex:1;}
+
+  /* ---------- HOME / registration page ---------- */
+  .home-wrap{
+    max-width:640px; margin:0 auto; padding:44px 20px 60px;
+  }
+  .home-wrap .kicker{font-family:'IBM Plex Serif', serif; font-style:italic; color:var(--ink-soft); font-size:13.5px; margin-bottom:4px;}
+  .home-wrap h2{font-size:25px; margin-bottom:22px;}
+
+  .reg-form{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:24px;
+    box-shadow:0 1px 0 var(--line);
+  }
+  .field{margin-bottom:16px;}
+  .field label{display:block; font-size:12px; color:var(--ink-soft); margin-bottom:6px;}
+  .field-hint{margin-top:6px; font-size:11.5px; color:var(--partial);}
+  .suggestions-box{
+    position:absolute; top:100%; left:0; right:0; z-index:20;
+    background:var(--surface); border:1px solid var(--line); border-radius:8px;
+    margin-top:4px; box-shadow:0 6px 18px rgba(0,0,0,.1); overflow:hidden;
+  }
+  .suggestion-item{
+    padding:8px 12px; cursor:pointer; font-size:13px; border-bottom:1px solid var(--line);
+  }
+  .suggestion-item:last-child{border-bottom:none;}
+  .suggestion-item:hover{background:var(--bg);}
+  .suggestion-item .sug-name{font-weight:600;}
+  .suggestion-item .sug-meta{color:var(--ink-soft); font-size:11.5px; margin-top:1px;}
+  .field input, .field textarea, .field select{
+    width:100%;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:9px 11px;
+    font-family:inherit;
+    font-size:14px;
+    background:var(--surface);
+    color:var(--ink);
+    resize:vertical;
+  }
+  .field input:focus, .field textarea:focus{outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent);}
+  .reg-row2{display:flex; gap:14px;}
+  .reg-row2 .field{flex:1;}
+
+  .btn{
+    font-family:inherit;
+    font-size:13px;
+    font-weight:500;
+    border-radius:6px;
+    border:1px solid transparent;
+    padding:8px 14px;
+    cursor:pointer;
+    white-space:nowrap;
+    transition:opacity .12s ease;
+  }
+  .btn:hover{opacity:.85;}
+  .btn:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  .btn-primary{background:var(--done); color:#fff;}
+  .btn-quiet{background:transparent; border-color:var(--line); color:var(--ink-soft);}
+  .btn-done{background:var(--done-bg); color:var(--done); border-color:var(--done-line);}
+  .btn-partial{background:var(--partial-bg); color:var(--partial); border-color:var(--partial-line);}
+  .btn-danger{background:transparent; color:var(--danger); border-color:transparent;}
+  .btn-danger:hover{background:var(--danger-bg);}
+  .btn-sm{padding:5px 10px; font-size:12px;}
+  .btn-block{width:100%; padding:11px; font-size:14px; margin-top:4px;}
+
+  /* ---------- VIEW page (project browser) ---------- */
+  .view-app{display:flex;}
+  .tabs{
+    width:216px; flex-shrink:0;
+    padding:24px 14px 28px 24px;
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .tab{
+    display:flex; align-items:center; gap:10px;
+    padding:10px 12px;
+    border-radius:9px;
+    border:1px solid transparent;
+    background:transparent;
+    cursor:pointer;
+    text-align:left;
+    font-family:inherit;
+    font-size:13.5px;
+    color:var(--ink-soft);
+    transition:background .12s ease, color .12s ease;
+  }
+  .tab:hover{background:var(--surface);}
+  .tab.active{
+    background:var(--tab-soft, var(--accent-soft));
+    color:var(--tab-dark, var(--accent-dark));
+    border-color:var(--tab-c, var(--accent));
+    font-weight:500;
+  }
+  .tab .letter{
+    width:26px; height:26px; flex-shrink:0;
+    border-radius:50%;
+    border:1.5px solid currentColor;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Serif', serif;
+    font-size:13px;
+    opacity:.85;
+  }
+  .tab.active .letter{background:var(--tab-c, var(--accent)); border-color:var(--tab-c, var(--accent)); color:#fff; opacity:1;}
+  .tab .count{
+    margin-left:auto; font-size:11px; color:var(--ink-soft);
+    background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:1px 7px; min-width:16px; text-align:center;
+  }
+  .tab.active .count.has-items{background:#fff; color:var(--tab-dark, var(--accent-dark));}
+
+  .main{
+    flex:1;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    margin:24px 24px 24px 0;
+    padding:28px 34px 40px;
+    min-width:0;
+  }
+  .project-title{font-size:22px; margin-bottom:2px;}
+  .project-sub{color:var(--ink-soft); font-size:13px; margin-bottom:24px;}
+
+  section.list-section{margin-bottom:14px;}
+  .section-head{display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap;}
+  .section-head select{
+    font-family:inherit; font-size:12px; color:var(--ink-soft);
+    border:1px solid var(--line); border-radius:6px; padding:5px 8px; background:var(--surface);
+  }
+  .section-head h2{font-size:15px;}
+  .section-head .muted{color:var(--ink-soft); font-size:12px;}
+
+  .entry{
+    display:flex; gap:16px; padding:14px 16px;
+    border:1px solid var(--line); border-left:3px solid var(--ink-soft);
+    border-radius:8px; margin-bottom:8px; align-items:flex-start;
+  }
+  .entry.partial{background:var(--surface); border-left-color:var(--partial); border-color:var(--line);}
+  .entry.done{background:var(--done-bg); border-left-color:var(--done); border-color:var(--done-line); opacity:.9;}
+  .entry-date{width:78px; flex-shrink:0; font-size:12.5px; color:var(--ink-soft); padding-top:2px;}
+  .entry-priority{
+    font-family:'IBM Plex Serif', serif; font-weight:600; font-size:14px; color:var(--ink);
+    margin-bottom:3px;
+  }
+  .entry-body{flex:1; min-width:0;}
+  .entry-name{font-weight:600; font-size:14px; margin-bottom:2px;}
+  .entry-meta{font-size:12px; color:var(--ink-soft); margin-bottom:5px;}
+  .badge-partial{
+    display:inline-block; font-weight:500; font-size:10.5px; letter-spacing:.2px;
+    color:var(--partial); background:var(--partial-bg); border:1px solid var(--partial-line);
+    border-radius:20px; padding:1px 8px; margin-left:6px; vertical-align:middle;
+  }
+  .entry-desc{font-size:13.5px; color:var(--ink); white-space:pre-wrap; word-break:break-word;}
+  .entry-partial-note{
+    margin-top:6px; font-size:12.5px; color:var(--partial);
+    background:var(--partial-bg); border-radius:5px; padding:5px 8px; display:inline-block;
+  }
+  .entry-partial-note .partial-note-line{margin-bottom:3px;}
+  .entry-partial-note .partial-note-line:last-child{margin-bottom:0;}
+  .entry-completed-date{margin-top:5px; font-size:12px; color:var(--done);}
+  .entry-deleted-note{margin-top:5px; font-size:12px; color:var(--danger);}
+  .entry-contact-note{margin-top:8px; font-size:10.5px; color:var(--ink-soft); font-style:italic;}
+  .entry-actions{display:flex; flex-direction:column; gap:6px; flex-shrink:0; min-width:118px; align-items:stretch;}
+  .entry-actions .row{display:flex; gap:6px;}
+  .partial-edit{margin-top:10px; display:flex; gap:8px;}
+  .partial-edit textarea{flex:1; min-height:44px;}
+  .delete-reason-box{display:flex; flex-direction:column; gap:6px; min-width:180px;}
+  .delete-reason-box textarea{min-height:52px; border:1px solid var(--danger-bg); border-radius:6px; padding:7px 9px; font-family:inherit; font-size:12.5px; resize:vertical;}
+  .delete-reason-box textarea:focus{outline:2px solid var(--danger); outline-offset:1px;}
+  .entry.deleted{background:var(--danger-bg); border-left-color:var(--danger); opacity:.75;}
+  .entry.deleted .entry-desc{text-decoration:line-through; text-decoration-color:var(--ink-soft);}
+  .entry.editing{border-left-color:var(--accent); background:var(--accent-soft);}
+  .edit-form{width:100%;}
+  .edit-form .edit-row{display:flex; gap:12px; margin-bottom:12px;}
+  .edit-form .edit-row .field{flex:1; margin-bottom:0;}
+  .edit-form .field{margin-bottom:12px;}
+  .edit-form label{display:block; font-size:11.5px; color:var(--ink-soft); margin-bottom:4px;}
+  .edit-form input, .edit-form textarea{
+    width:100%; border:1px solid var(--line); border-radius:6px; padding:7px 9px;
+    font-family:inherit; font-size:13px; background:var(--surface); color:var(--ink); resize:vertical;
+  }
+  .edit-form input:focus, .edit-form textarea:focus{outline:2px solid var(--accent); outline-offset:1px;}
+
+  .empty-state{
+    padding:26px 18px; text-align:center; color:var(--ink-soft); font-size:13.5px;
+    border:1px dashed var(--line); border-radius:8px;
+  }
+
+  details.completed-wrap{border:1px solid var(--line); border-radius:8px; padding:2px 4px;}
+  details.completed-wrap summary{
+    cursor:pointer; padding:10px 12px; font-size:13.5px; font-weight:500;
+    list-style:none; display:flex; align-items:center; gap:8px;
+  }
+  details.completed-wrap summary::-webkit-details-marker{display:none;}
+  details.completed-wrap summary:before{content:'▸'; color:var(--ink-soft); font-size:11px;}
+  details.completed-wrap[open] summary:before{content:'▾';}
+  .completed-body{padding:4px 12px 12px;}
+
+  .contacts-wrap{max-width:1080px; margin:0 auto; padding:44px 20px 60px;}
+
+  .stats-wrap{max-width:1080px; margin:0 auto; padding:44px 20px 60px;}
+  .stats-grid{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+    gap:14px; margin:22px 0 32px;
+  }
+  .stat-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:18px 18px 16px;
+  }
+  .stat-card .stat-number{font-family:'IBM Plex Serif', serif; font-size:30px; font-weight:600; line-height:1.1;}
+  .stat-card .stat-label{font-size:12.5px; color:var(--ink-soft); margin-top:4px;}
+  .stat-section-title{font-size:15px; font-weight:600; margin:0 0 14px;}
+  .progress-track{
+    background:var(--bg); border-radius:20px; height:10px; overflow:hidden; margin-top:10px;
+  }
+  .progress-fill{height:100%; background:var(--done); border-radius:20px;}
+  .stat-bars{display:flex; flex-direction:column; gap:10px; margin-bottom:32px;}
+  .stat-bar-row{display:flex; align-items:center; gap:12px;}
+  .stat-bar-row .bar-label{width:170px; flex-shrink:0; font-size:13px; color:var(--ink-soft);}
+  .stat-bar-row .bar-track{flex:1; background:var(--bg); border-radius:6px; height:16px; overflow:hidden;}
+  .stat-bar-row .bar-fill{height:100%; border-radius:6px;}
+  .stat-bar-row .bar-count{width:34px; text-align:right; font-size:12.5px; color:var(--ink-soft); flex-shrink:0;}
+  .stat-highlight{
+    background:var(--accent-soft); border:1px solid var(--accent); border-radius:10px;
+    padding:14px 16px; font-size:13.5px; color:var(--accent-dark); margin-bottom:20px;
+  }
+  .charts-row{display:flex; gap:32px; flex-wrap:wrap; margin-bottom:32px;}
+  .chart-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:20px 22px; flex:1; min-width:280px;
+  }
+  .pie-wrap{display:flex; align-items:center; gap:24px; flex-wrap:wrap;}
+  .pie-chart{width:150px; height:150px; border-radius:50%; flex-shrink:0;}
+  .pie-legend-item{display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:7px; color:var(--ink);}
+  .pie-dot{width:10px; height:10px; border-radius:50%; display:inline-block; flex-shrink:0;}
+  .month-chart{display:flex; align-items:flex-end; gap:14px; height:130px; margin-top:14px;}
+  .month-bar-col{display:flex; flex-direction:column; align-items:center; flex:1; height:100%; justify-content:flex-end;}
+  .month-bar-track{width:100%; max-width:34px; height:90px; display:flex; align-items:flex-end; background:var(--bg); border-radius:6px; overflow:hidden;}
+  .month-bar-fill{width:100%; background:var(--accent); border-radius:6px 6px 0 0; transition:height .25s ease;}
+  .month-bar-count{font-size:11.5px; color:var(--ink-soft); margin-top:5px; font-weight:600;}
+  .month-bar-label{font-size:11px; color:var(--ink-soft); margin-top:2px; text-transform:capitalize;}
+
+  .contacts-toolbar{margin-bottom:18px;}
+  .contacts-filters{display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end;}
+  .contacts-filters .field{min-width:180px; flex:1;}
+  .contacts-count{font-size:12px; color:var(--ink-soft); margin-top:10px;}
+  .contact-table-scroll{
+    border:1px solid var(--line); border-radius:10px; overflow:auto; max-height:70vh;
+    background:var(--surface);
+  }
+  table.contact-table{width:100%; border-collapse:collapse; font-size:13.5px; table-layout:fixed;}
+  .contact-table col.col-lastname{width:16%;}
+  .contact-table col.col-firstname{width:14%;}
+  .contact-table col.col-afm{width:12%;}
+  .contact-table col.col-projects{width:25%;}
+  .contact-table col.col-values{width:33%;}
+  .contact-table thead th{
+    position:sticky; top:0; z-index:1;
+    background:var(--bg); color:var(--ink-soft);
+    text-align:left; font-weight:600; font-size:11.5px;
+    padding:9px 14px;
+    border:1px solid var(--line);
+    white-space:nowrap;
+  }
+  .contact-table tbody td{
+    padding:9px 14px;
+    border:1px solid var(--line);
+    vertical-align:top;
+    word-break:break-word;
+  }
+  .contact-table tbody tr:hover td{background:var(--bg);}
+  .contact-table .col-lastname{font-weight:600;}
+  .contact-table .col-afm{color:var(--ink-soft); font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .contact-table .col-values .value-line{margin-bottom:2px;}
+  .contact-table .col-values .value-line:last-child{margin-bottom:0;}
+  .contact-table .who{color:var(--ink-soft); font-size:12px;}
+  .entry-name .lastname{font-weight:700;}
+  .entry-name .firstname{font-weight:400;}
+
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--ink); color:#fff; padding:9px 16px; border-radius:7px;
+    font-size:13px; box-shadow:0 4px 14px rgba(0,0,0,.2); z-index:50;
+  }
+
+  @media (max-width:820px){
+    .view-app{flex-direction:column;}
+    .tabs{width:100%; flex-direction:row; overflow-x:auto; padding:16px 14px 8px; gap:8px;}
+    .tab{flex-shrink:0; border-radius:8px;}
+    .tab.active{box-shadow:none; border-right:1px solid var(--line);}
+    .main{margin:0; border-radius:0; padding:22px 18px 40px;}
+    .entry{flex-direction:column;}
+    .entry-actions{flex-direction:row; min-width:0;}
+    .reg-row2{flex-direction:column;}
+    .home-wrap{padding:28px 16px 50px;}
+  }
+  @media print{
+    body{background:#fff;}
+    .brand-ribbon, .topnav, .tabs, .entry-actions, .btn, select, .field, .completed-wrap,
+    .badge-partial, .toast{ display:none !important; }
+    .main{margin:0 !important; border:none !important; padding:0 !important; box-shadow:none !important;}
+    .project-title{font-size:20px;}
+    .section-head{display:block;}
+    .section-head .muted{display:none;}
+    .entry{
+      border:1px solid #999 !important; background:#fff !important; color:#000 !important;
+      break-inside:avoid; page-break-inside:avoid;
+    }
+    .entry.partial, .entry.done, .entry.deleted, .entry.editing{background:#fff !important;}
+    .entry-name, .entry-priority{color:#000 !important;}
+    .entry-meta, .entry-desc, .entry-partial-note, .entry-completed-date, .entry-deleted-note{color:#222 !important;}
+    .view-app{display:block;}
+  }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+const PROJECTS = [
+  {id:'a-minoa-energiaki', letter:'Α', name:'Α ΜΙΝΩΑ ΕΝΕΡΓΕΙΑΚΗ', color:'blue'},
+  {id:'b-minoa-energiaki', letter:'Β', name:'Β ΜΙΝΩΑ ΕΝΕΡΓΕΙΑΚΗ', color:'done'},
+  {id:'a-minoa-aroania',   letter:'Α', name:'Α ΜΙΝΩΑ ΑΡΟΑΝΙΑ',   color:'blue'},
+  {id:'b-minoa-aroania',   letter:'Β', name:'Β ΜΙΝΩΑ ΑΡΟΑΝΙΑ',   color:'done'},
+  {id:'g-minoa-aroania',   letter:'Γ', name:'Γ ΜΙΝΩΑ ΑΡΟΑΝΙΑ',   color:'blue'},
+];
+
+const ALL_ID = 'all-projects';
+
+// Filled in server-side (see src/app/tracker/route.ts) with the logged-in user's name/email.
+const CURRENT_USER = {"name":"","email":""};
+
+const TAB_COLORWAYS = {
+  blue:    {c:'var(--accent)', soft:'var(--accent-soft)', dark:'var(--accent-dark)'},
+  done:    {c:'var(--done)',   soft:'var(--done-bg)',      dark:'var(--done)'},
+  partial: {c:'var(--partial)',soft:'var(--partial-bg)',   dark:'var(--partial)'},
+  all:     {c:'var(--ink)',    soft:'var(--line)',         dark:'var(--ink)'},
+};
+
+const state = {
+  page: 'home',              // 'home' | 'view' | 'search' | 'contacts'
+  homeSelectedProject: PROJECTS[0].id,
+  currentProject: PROJECTS[0].id,   // used by the view page; can also be ALL_ID
+  entries: {},                // projectId -> array | undefined (not loaded yet)
+  loading: {},
+  contacts: undefined,        // array | undefined (not loaded yet)
+  contactsLoading: false,
+  deletingId: null,
+  deletingProjectId: null,
+  editingPartialId: null,
+  editingPartialProjectId: null,
+  editingEntryId: null,
+  editingEntryProjectId: null,
+  toast: null,
+  searchQuery: '',
+  contactsSearchQuery: '',
+  contactsProjectFilter: 'all',
+  contactsTypeFilter: 'all',
+  viewSort: 'priority',
+  viewSearchQuery: '',
+};
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function toDisplayDate(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+function esc(s){
+  return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+// Works for both new-format records (lastName/firstName) and older
+// records that only ever had a single combined `name` string.
+function nameParts(obj){
+  if(obj.lastName !== undefined) return {last: obj.lastName||'', first: obj.firstName||''};
+  const parts = (obj.name||'').trim().split(/\s+/);
+  return {last: parts[0]||'', first: parts.slice(1).join(' ')};
+}
+function fullName(obj){
+  const {last, first} = nameParts(obj);
+  return `${last} ${first}`.trim();
+}
+function renderName(obj){
+  const {last, first} = nameParts(obj);
+  return `<span class="lastname">${esc(last)}</span>${first ? ` <span class="firstname">${esc(first)}</span>` : ''}`;
+}
+
+/* ---------- Excel export ---------- */
+
+function entryToExportRow(e, includeProjectLabel){
+  const {last, first} = nameParts(e);
+  const notes = (e.partialNotes && e.partialNotes.length) ? e.partialNotes : (e.partialNote ? [{date:e.date, text:e.partialNote}] : []);
+  const row = {
+    'Ημερομηνία': toDisplayDate(e.date),
+    'Επώνυμο': last,
+    'Όνομα': first,
+    'ΑΦΜ': e.afm || '',
+    'Αριθμός Παροχής': e.supplyNumber || '',
+  };
+  if(includeProjectLabel !== undefined) row['Έργο'] = includeProjectLabel;
+  row['Κατάσταση'] = STATUS_LABEL[e.status] || e.status;
+  row['Περιγραφή'] = e.description || '';
+  row['Στοιχεία επικοινωνίας'] = e.contactInfo || '';
+  row['Επικοινωνία με'] = e.contactPersonName || '';
+  if(e.status === 'partial') row['Σχόλια μερικής εκτέλεσης'] = notes.map(n => `${toDisplayDate(n.date)}: ${n.text}`).join(' | ');
+  if(e.status === 'done') row['Ολοκληρώθηκε στις'] = toDisplayDate(e.completedDate);
+  if(e.status === 'deleted'){ row['Διαγράφηκε στις'] = toDisplayDate(e.deletedDate); row['Αιτιολογία διαγραφής'] = e.deleteReason || ''; }
+  return row;
+}
+
+function contactToExportRow(r){
+  const {last, first} = nameParts(r);
+  const projLabels = (r.projectIds||[]).map(pid => (PROJECTS.find(p=>p.id===pid)||{}).name).filter(Boolean).join(', ');
+  const contactsText = (r.contacts||[]).map(c => c.value + (c.personName ? ` (${c.personName})` : '')).join(' | ');
+  return {
+    'Επώνυμο': last,
+    'Όνομα': first,
+    'ΑΦΜ': r.afm || '',
+    'Έργα': projLabels,
+    'Στοιχεία επικοινωνίας': contactsText,
+  };
+}
+
+function downloadXlsx(filename, sheetName, rows){
+  if(typeof XLSX === 'undefined'){
+    showToast('Η βιβλιοθήκη Excel δεν φόρτωσε ακόμη — δοκίμασε ξανά σε λίγο.');
+    return;
+  }
+  if(!rows.length){
+    showToast('Δεν υπάρχουν δεδομένα για λήψη.');
+    return;
+  }
+  try{
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0,31));
+    XLSX.writeFile(wb, filename);
+  }catch(err){
+    showToast('Η δημιουργία του αρχείου Excel απέτυχε.');
+  }
+}
+
+function exportXlsx(target){
+  const q = state.viewSearchQuery.trim().toLowerCase();
+
+  if(target === 'pending' || target === 'done' || target === 'deleted'){
+    const projectId = state.currentProject;
+    const proj = PROJECTS.find(p=>p.id===projectId);
+    const list = state.entries[projectId] || [];
+    let rows;
+    if(target === 'pending'){
+      rows = getPendingSorted(projectId).filter(e => entryMatchesQuery(e, q));
+    } else {
+      rows = list.filter(e => e.status === target && entryMatchesQuery(e, q));
+    }
+    const label = target === 'pending' ? 'Εκκρεμότητες' : target === 'done' ? 'Ολοκληρωμένες' : 'Διαγραμμένες';
+    downloadXlsx(`${proj.name} - ${label}.xlsx`, label, rows.map(e => entryToExportRow(e)));
+  }
+  else if(target === 'all-pending' || target === 'all-done' || target === 'all-deleted'){
+    const status = target === 'all-pending' ? null : (target === 'all-done' ? 'done' : 'deleted');
+    let rows = [];
+    PROJECTS.forEach(p => {
+      const list = state.entries[p.id] || [];
+      const matching = status
+        ? list.filter(e => e.status === status && entryMatchesQuery(e, q))
+        : getPendingSorted(p.id).filter(e => entryMatchesQuery(e, q));
+      matching.forEach(e => rows.push(entryToExportRow(e, p.name)));
+    });
+    const label = target === 'all-pending' ? 'Εκκρεμότητες όλων των έργων' : target === 'all-done' ? 'Ολοκληρωμένες όλων των έργων' : 'Διαγραμμένες όλων των έργων';
+    downloadXlsx(`${label}.xlsx`, label, rows);
+  }
+  else if(target === 'search'){
+    const sq = state.searchQuery.trim().toLowerCase();
+    let rows = [];
+    PROJECTS.forEach(p => {
+      (state.entries[p.id]||[]).forEach(e => {
+        const nameHit = fullName(e).toLowerCase().includes(sq);
+        const afmHit = e.afm && e.afm.includes(state.searchQuery.trim());
+        if(nameHit || afmHit) rows.push(entryToExportRow(e, p.name));
+      });
+    });
+    downloadXlsx('Αναζήτηση αλλαγών.xlsx', 'Αναζήτηση', rows);
+  }
+  else if(target === 'contacts'){
+    const cq = state.contactsSearchQuery.trim().toLowerCase();
+    let rows = [...(state.contacts||[])];
+    if(cq){
+      rows = rows.filter(r => fullName(r).toLowerCase().includes(cq) || (r.afm && r.afm.includes(state.contactsSearchQuery.trim())));
+    }
+    if(state.contactsProjectFilter !== 'all'){
+      rows = rows.filter(r => (r.projectIds||[]).includes(state.contactsProjectFilter));
+    }
+    if(state.contactsTypeFilter !== 'all'){
+      rows = rows.filter(r => r.contacts.some(c => contactValueType(c.value) === state.contactsTypeFilter));
+    }
+    rows.sort((a,b)=> {
+      const pa = nameParts(a), pb = nameParts(b);
+      return pa.last.localeCompare(pb.last, 'el') || pa.first.localeCompare(pb.first, 'el');
+    });
+    downloadXlsx('Κατάλογος επικοινωνίας.xlsx', 'Κατάλογος', rows.map(contactToExportRow));
+  }
+}
+
+/* ---------- Excel import ---------- */
+
+function printEntryRows(title, rows){
+  const rowsHtml = rows.map(({e, priority, projLabel}) => `
+    <div class="p-entry">
+      <div class="p-num">${priority ? '#'+priority : ''}</div>
+      <div class="p-date">${toDisplayDate(e.date)}</div>
+      <div class="p-body">
+        <div class="p-name">${esc(fullName(e))}${projLabel ? ` — ${esc(projLabel)}` : ''}</div>
+        <div class="p-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', e.contactInfo ? esc(e.contactInfo) : ''].filter(Boolean).join(' · ')}</div>
+        <div class="p-desc">${esc(e.description)}</div>
+      </div>
+    </div>`).join('');
+
+  const html = `<!DOCTYPE html><html lang="el"><head><meta charset="UTF-8"><title>${esc(title)}</title>
+<style>
+  body{font-family:Arial, Helvetica, sans-serif; padding:28px; color:#111; max-width:900px; margin:0 auto;}
+  h1{font-size:18px; margin:0 0 4px;}
+  .p-sub{font-size:12px; color:#555; margin-bottom:20px;}
+  .p-entry{display:flex; gap:14px; border:1px solid #999; border-radius:6px; padding:10px 14px; margin-bottom:8px; break-inside:avoid; page-break-inside:avoid;}
+  .p-num{font-weight:700; width:28px; flex-shrink:0;}
+  .p-date{width:80px; flex-shrink:0; color:#333; font-size:13px;}
+  .p-name{font-weight:700; font-size:14px;}
+  .p-meta, .p-desc{font-size:12.5px; color:#222; margin-top:3px;}
+  @media print{ body{padding:10mm;} }
+</style></head>
+<body>
+  <h1>${esc(title)}</h1>
+  <div class="p-sub">${rows.length} εγγραφ${rows.length===1?'ή':'ές'} · δημιουργήθηκε ${toDisplayDate(todayISO())}</div>
+  <p class="p-sub" style="margin-top:-14px;">Άνοιξε αυτό το αρχείο και χρησιμοποίησε Εκτύπωση (Ctrl+P ή ⌘+P) από το πρόγραμμα περιήγησής σου.</p>
+  ${rowsHtml || '<p>Καμία εκκρεμότητα.</p>'}
+</body></html>`;
+
+  const blob = new Blob([html], {type: 'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${title.replace(/[\\/:*?"<>|]/g, '')}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 4000);
+  showToast('Κατέβηκε το αρχείο — άνοιξέ το και πάτησε Εκτύπωση από το πρόγραμμά περιήγησής σου.');
+}
+
+function printCurrentPending(){
+  const q = state.viewSearchQuery.trim().toLowerCase();
+  if(state.currentProject === ALL_ID){
+    let combined = [];
+    PROJECTS.forEach(p => {
+      getPendingSorted(p.id).filter(e => entryMatchesQuery(e, q)).forEach(e => combined.push({e, projectId: p.id}));
+    });
+    combined.sort((a,b)=> a.e.date < b.e.date ? -1 : a.e.date > b.e.date ? 1 : 0);
+    const rows = combined.map((row,i) => ({e: row.e, priority: i+1, projLabel: (PROJECTS.find(p=>p.id===row.projectId)||{}).name}));
+    printEntryRows('Εκκρεμότητες — Όλα τα έργα', rows);
+  } else {
+    const proj = PROJECTS.find(p=>p.id===state.currentProject);
+    const pending = getPendingSorted(state.currentProject).filter(e => entryMatchesQuery(e, q));
+    const rows = pending.map((e,i) => ({e, priority: i+1}));
+    printEntryRows(`Εκκρεμότητες — ${proj.name}`, rows);
+  }
+}
+
+function downloadReceipt(id, projectId){
+  const list = state.entries[projectId] || [];
+  const e = list.find(x => x.id === id);
+  if(!e) return;
+  const proj = PROJECTS.find(p => p.id === projectId);
+  const refNumber = e.id.slice(-6).toUpperCase();
+
+  const rowsHtml = [
+    ['Αρ. Αναφοράς', refNumber],
+    ['Ημερομηνία καταχώρησης', toDisplayDate(e.date)],
+    ['Ονοματεπώνυμο', fullName(e)],
+    e.afm ? ['ΑΦΜ', e.afm] : null,
+    ['Αριθμός παροχής', e.supplyNumber || '—'],
+    ['Έργο', proj ? proj.name : ''],
+    ['Περιγραφή αιτήματος', e.description],
+    ['Κατάσταση', STATUS_LABEL[e.status] || e.status],
+    e.status === 'done' ? ['Ολοκληρώθηκε στις', toDisplayDate(e.completedDate)] : null,
+  ].filter(Boolean).map(([label, value]) => `
+    <tr><td class="r-label">${esc(label)}</td><td class="r-value">${esc(String(value))}</td></tr>
+  `).join('');
+
+  const html = `<!DOCTYPE html><html lang="el"><head><meta charset="UTF-8"><title>Βεβαίωση αιτήματος ${refNumber}</title>
+<style>
+  body{font-family:Arial, Helvetica, sans-serif; padding:36px; color:#111; max-width:640px; margin:0 auto;}
+  .r-ribbon{height:5px; background:linear-gradient(90deg,#1868DB 0%,#1868DB 33%,#189A57 33%,#189A57 66%,#F2790A 66%); margin-bottom:22px;}
+  h1{font-size:17px; margin:0 0 2px; letter-spacing:.2px;}
+  .r-sub{font-size:13px; color:#555; margin-bottom:24px;}
+  table{width:100%; border-collapse:collapse;}
+  td{padding:10px 4px; border-bottom:1px solid #ddd; vertical-align:top; font-size:13.5px;}
+  .r-label{color:#666; width:190px; font-weight:600;}
+  .r-value{color:#111;}
+  .r-footer{margin-top:28px; font-size:11.5px; color:#888;}
+</style></head>
+<body>
+  <div class="r-ribbon"></div>
+  <h1>Μινώα Ενεργειακή Κοινότητα</h1>
+  <div class="r-sub">Βεβαίωση καταχώρησης αιτήματος αλλαγής</div>
+  <table>${rowsHtml}</table>
+  <div class="r-footer">Το παρόν εκδόθηκε αυτόματα στις ${toDisplayDate(todayISO())} από το σύστημα διαχείρισης αιτημάτων της Κοινότητας.</div>
+</body></html>`;
+
+  const blob = new Blob([html], {type: 'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Εκτυπωση αιτηματος - ${fullName(e).replace(/[\\/:*?"<>|]/g,'')} - ${refNumber}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 4000);
+  showToast('Κατέβηκε το αρχείο — άνοιξέ το για να το δώσεις στο μέλος ή να το τυπώσεις.');
+}
+
+function downloadImportTemplate(){
+  const exampleRow = {
+    'Ημερομηνία': '04/08/2026',
+    'Επώνυμο': 'Παπαδόπουλος',
+    'Όνομα': 'Γιώργος',
+    'ΑΦΜ': '123456789',
+    'Αριθμός Παροχής': '55456783101',
+    'Έργο': PROJECTS[0].name,
+    'Περιγραφή': 'π.χ. Αύξηση ισχύος κατά 1kW',
+    'Στοιχεία επικοινωνίας': '6912345678',
+    'Επικοινωνία με': '',
+  };
+  downloadXlsx('Πρότυπο εισαγωγής.xlsx', 'Πρότυπο', [exampleRow]);
+}
+
+function parseImportDate(raw){
+  if(raw instanceof Date && !isNaN(raw)){
+    return raw.toISOString().slice(0,10);
+  }
+  if(typeof raw === 'number' && typeof XLSX !== 'undefined' && XLSX.SSF){
+    const d = XLSX.SSF.parse_date_code(raw);
+    if(d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+  }
+  if(typeof raw === 'string' && raw.trim()){
+    const s = raw.trim();
+    let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+    if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  }
+  return todayISO();
+}
+
+async function handleImportFile(file){
+  if(typeof XLSX === 'undefined'){
+    showToast('Η βιβλιοθήκη Excel δεν φόρτωσε ακόμη — δοκίμασε ξανά σε λίγο.');
+    return;
+  }
+  let rows;
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array'});
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+  }catch(err){
+    showToast('Δεν ήταν δυνατή η ανάγνωση του αρχείου.');
+    return;
+  }
+
+  const projectMap = {};
+  PROJECTS.forEach(p => { projectMap[p.name.trim().toLowerCase()] = p.id; });
+
+  let imported = 0, skipped = 0;
+  const bulkRows = [];
+
+  for(const row of rows){
+    const lastName = String(row['Επώνυμο']||'').trim();
+    const firstName = String(row['Όνομα']||'').trim();
+    const supplyNumber = String(row['Αριθμός Παροχής']||'').trim().replace(/\D/g,'').slice(0,11);
+    const projectId = projectMap[String(row['Έργο']||'').trim().toLowerCase()];
+    const description = String(row['Περιγραφή']||'').trim();
+
+    if(!lastName || !firstName || !supplyNumber || !projectId || !description){
+      skipped++;
+      continue;
+    }
+
+    let afm = String(row['ΑΦΜ']||'').trim().replace(/\D/g,'').slice(0,9);
+    if(afm.length !== 9) afm = '';
+    const contactInfo = String(row['Στοιχεία επικοινωνίας']||'').trim();
+    const contactPersonName = String(row['Επικοινωνία με']||'').trim();
+    const date = parseImportDate(row['Ημερομηνία']);
+
+    if(state.entries[projectId] === undefined) await loadEntries(projectId);
+    const list = state.entries[projectId] || [];
+    const entry = {
+      id: uid(), date, lastName, firstName, afm,
+      supplyNumber, contactInfo, contactPersonName,
+      description, status: 'pending', partialNotes: [], completedDate: null
+    };
+    list.push(entry);
+    state.entries[projectId] = list;
+    bulkRows.push({id: entry.id, projectId, date, lastName, firstName, afm, supplyNumber, contactInfo, contactPersonName, description});
+    if(contactInfo){
+      await addOrUpdateContact(lastName, firstName, afm, contactInfo, contactPersonName, projectId);
+    }
+    imported++;
+  }
+
+  render();
+
+  if(bulkRows.length){
+    try{
+      await fetch('/api/entries/bulk', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({rows: bulkRows})
+      });
+    }catch(err){
+      showToast('Προσοχή: κάποιες εγγραφές μπορεί να μην αποθηκεύτηκαν στον διακομιστή.');
+    }
+  }
+
+  showToast(`Εισήχθησαν ${imported} αλλαγές${skipped ? ` — παραβλέφθηκαν ${skipped} γραμμές με λείπον υποχρεωτικό στοιχείο` : ''}.`);
+}
+
+function showToast(msg){
+  state.toast = msg;
+  render();
+  setTimeout(()=>{ state.toast = null; render(); }, 2600);
+}
+
+/* ---------- data layer: talks to the Next.js API routes, which talk to Postgres ---------- */
+
+function normDate(d){ return d ? String(d).slice(0,10) : null; }
+
+function rowToEntry(row){
+  return {
+    id: row.id,
+    date: normDate(row.date),
+    lastName: row.lastName || '',
+    firstName: row.firstName || '',
+    afm: row.afm || '',
+    supplyNumber: row.supplyNumber || '',
+    contactInfo: row.contactInfo || '',
+    contactPersonName: row.contactPersonName || '',
+    description: row.description || '',
+    status: row.status,
+    partialNotes: row.partialNotes || [],
+    completedDate: normDate(row.completedDate),
+    deletedDate: normDate(row.deletedDate),
+    deleteReason: row.deleteReason || null,
+  };
+}
+
+function rowToContact(row){
+  return {
+    id: row.id,
+    lastName: row.lastName || '',
+    firstName: row.firstName || '',
+    afm: row.afm || '',
+    contacts: row.contacts || [],
+    projectIds: row.projectIds || [],
+  };
+}
+
+async function patchEntry(id, fields){
+  try{
+    const res = await fetch('/api/entries/' + encodeURIComponent(id), {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(fields)
+    });
+    return res.ok;
+  }catch(err){
+    return false;
+  }
+}
+
+async function loadEntries(projectId){
+  if(state.entries[projectId] !== undefined) return;
+  state.loading[projectId] = true;
+  render();
+  let list = [];
+  try{
+    const res = await fetch('/api/entries?projectId=' + encodeURIComponent(projectId));
+    if(!res.ok) throw new Error('load failed');
+    const rows = await res.json();
+    list = rows.map(rowToEntry);
+  }catch(err){
+    list = [];
+    showToast('Η φόρτωση απέτυχε — δοκίμασε ξανά.');
+  }
+  state.entries[projectId] = list;
+  state.loading[projectId] = false;
+  render();
+}
+
+// Silent background refresh used by the polling loop — keeps everyone's
+// screen in sync without disturbing whatever they're doing.
+async function refreshEntries(projectId){
+  try{
+    const res = await fetch('/api/entries?projectId=' + encodeURIComponent(projectId));
+    if(!res.ok) return;
+    const rows = await res.json();
+    state.entries[projectId] = rows.map(rowToEntry);
+    render();
+  }catch(err){ /* transient network hiccup — try again next tick */ }
+}
+
+async function loadContacts(){
+  if(state.contacts !== undefined) return;
+  state.contactsLoading = true;
+  render();
+  let list = [];
+  try{
+    const res = await fetch('/api/contacts');
+    if(!res.ok) throw new Error('load failed');
+    const rows = await res.json();
+    list = rows.map(rowToContact);
+  }catch(err){
+    list = [];
+  }
+  state.contacts = list;
+  state.contactsLoading = false;
+  render();
+}
+
+async function refreshContacts(){
+  try{
+    const res = await fetch('/api/contacts');
+    if(!res.ok) return;
+    const rows = await res.json();
+    state.contacts = rows.map(rowToContact);
+    render();
+  }catch(err){ /* transient network hiccup — try again next tick */ }
+}
+
+async function addOrUpdateContact(lastName, firstName, afm, contactValue, personName, projectId){
+  if(state.contacts === undefined) await loadContacts();
+  const list = state.contacts || [];
+  const lastKey = lastName.trim().toLowerCase();
+  const firstKey = firstName.trim().toLowerCase();
+  const afmKey = (afm||'').trim();
+  let record = list.find(r => afmKey ? r.afm === afmKey : (r.lastName.trim().toLowerCase() === lastKey && r.firstName.trim().toLowerCase() === firstKey));
+  const isNew = !record;
+  if(!record){
+    record = {id: uid(), lastName: lastName.trim(), firstName: firstName.trim(), afm: afmKey, contacts: [], projectIds: []};
+    list.push(record);
+  } else {
+    if(!record.afm && afmKey) record.afm = afmKey; // fill in ΑΦΜ if it was missing before
+    record.lastName = lastName.trim();
+    record.firstName = firstName.trim();
+  }
+  if(!record.projectIds) record.projectIds = [];
+  if(projectId && !record.projectIds.includes(projectId)){
+    record.projectIds.push(projectId);
+  }
+  const val = contactValue.trim();
+  const already = record.contacts.some(c => c.value.trim().toLowerCase() === val.toLowerCase());
+  if(!already){
+    record.contacts.push({value: val, personName: (personName||'').trim()});
+  }
+  state.contacts = list;
+
+  try{
+    if(isNew){
+      const res = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({id: record.id, lastName: record.lastName, firstName: record.firstName, afm: record.afm, contacts: record.contacts, projectIds: record.projectIds})
+      });
+      return res.ok;
+    } else {
+      const res = await fetch('/api/contacts/' + encodeURIComponent(record.id), {
+        method: 'PATCH',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({lastName: record.lastName, firstName: record.firstName, afm: record.afm, contacts: record.contacts, projectIds: record.projectIds})
+      });
+      return res.ok;
+    }
+  }catch(err){
+    return false;
+  }
+}
+
+function contactValueType(v){
+  return v.includes('@') ? 'email' : 'phone';
+}
+
+function currentEntries(){
+  return state.entries[state.currentProject] || [];
+}
+
+async function addEntry(projectId, date, lastName, firstName, afm, supplyNumber, contactInfo, contactPersonName, description){
+  if(state.entries[projectId] === undefined){
+    await loadEntries(projectId);
+  }
+  const entry = {
+    id: uid(), date, lastName: lastName.trim(), firstName: firstName.trim(), afm: (afm||'').trim(),
+    supplyNumber: supplyNumber.trim(), contactInfo: (contactInfo||'').trim(), contactPersonName: (contactPersonName||'').trim(),
+    description: description.trim(),
+    status: 'pending', partialNotes: [], completedDate: null
+  };
+  const list = state.entries[projectId] || [];
+  list.push(entry);
+  state.entries[projectId] = list;
+  render();
+  try{
+    const res = await fetch('/api/entries', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        id: entry.id, projectId, date, lastName: entry.lastName, firstName: entry.firstName,
+        afm: entry.afm, supplyNumber: entry.supplyNumber, contactInfo: entry.contactInfo,
+        contactPersonName: entry.contactPersonName, description: entry.description
+      })
+    });
+    return res.ok;
+  }catch(err){
+    return false;
+  }
+}
+
+async function markDone(id, projectId){
+  const list = state.entries[projectId] || [];
+  const e = list.find(x=>x.id===id);
+  if(!e) return;
+  e.status = 'done';
+  e.completedDate = todayISO();
+  render();
+  const ok = await patchEntry(id, {status:'done', completedDate: e.completedDate});
+  if(!ok) showToast('Η αποθήκευση απέτυχε — δοκίμασε ξανά.');
+}
+
+async function markPartial(id, note, projectId){
+  const list = state.entries[projectId] || [];
+  const e = list.find(x=>x.id===id);
+  if(!e) return;
+  if(!e.partialNotes){
+    // migrate any older single-note entry into the comment history
+    e.partialNotes = e.partialNote ? [{date: e.date, text: e.partialNote}] : [];
+  }
+  e.partialNotes.push({date: todayISO(), text: note.trim()});
+  e.status = 'partial';
+  state.editingPartialId = null;
+  state.editingPartialProjectId = null;
+  render();
+  const ok = await patchEntry(id, {status:'partial', partialNotes: e.partialNotes});
+  if(!ok) showToast('Η αποθήκευση απέτυχε — δοκίμασε ξανά.');
+}
+
+async function revertToPending(id, projectId){
+  const list = state.entries[projectId] || [];
+  const e = list.find(x=>x.id===id);
+  if(!e) return;
+  e.status = 'pending';
+  e.completedDate = null;
+  render();
+  const ok = await patchEntry(id, {status:'pending', completedDate: null});
+  if(!ok) showToast('Η αποθήκευση απέτυχε — δοκίμασε ξανά.');
+}
+
+async function deleteEntry(id, reason, projectId){
+  const list = state.entries[projectId] || [];
+  const e = list.find(x=>x.id===id);
+  if(!e) return;
+  e.status = 'deleted';
+  e.deletedDate = todayISO();
+  e.deleteReason = reason.trim();
+  state.deletingId = null;
+  state.deletingProjectId = null;
+  render();
+  const ok = await patchEntry(id, {status:'deleted', deletedDate: e.deletedDate, deleteReason: e.deleteReason});
+  if(!ok) showToast('Η αποθήκευση απέτυχε — δοκίμασε ξανά.');
+}
+
+async function revertDeleted(id, projectId){
+  const list = state.entries[projectId] || [];
+  const e = list.find(x=>x.id===id);
+  if(!e) return;
+  e.status = 'pending';
+  e.deletedDate = null;
+  e.deleteReason = null;
+  render();
+  const ok = await patchEntry(id, {status:'pending', deletedDate: null, deleteReason: null});
+  if(!ok) showToast('Η αποθήκευση απέτυχε — δοκίμασε ξανά.');
+}
+
+async function updateEntryFields(id, projectId, fields){
+  const list = state.entries[projectId] || [];
+  const e = list.find(x=>x.id===id);
+  if(!e) return;
+  Object.assign(e, fields);
+  state.editingEntryId = null;
+  state.editingEntryProjectId = null;
+  render();
+  const ok = await patchEntry(id, fields);
+  if(!ok) showToast('Η αποθήκευση απέτυχε — δοκίμασε ξανά.');
+}
+
+function switchProject(id){
+  state.currentProject = id;
+  state.deletingId = null;
+  state.deletingProjectId = null;
+  state.editingPartialId = null;
+  state.editingPartialProjectId = null;
+  state.viewSearchQuery = '';
+  if(id === ALL_ID){
+    PROJECTS.forEach(p => loadEntries(p.id));
+  } else {
+    loadEntries(id);
+  }
+  render();
+}
+
+function goToPage(page){
+  state.page = page;
+  state.deletingId = null;
+  state.deletingProjectId = null;
+  state.editingPartialId = null;
+  state.editingPartialProjectId = null;
+  if(page === 'view'){
+    if(state.currentProject === ALL_ID){
+      PROJECTS.forEach(p => loadEntries(p.id));
+    } else {
+      loadEntries(state.currentProject);
+    }
+  }
+  if(page === 'search') PROJECTS.forEach(p => loadEntries(p.id));
+  if(page === 'contacts') loadContacts();
+  if(page === 'stats'){ PROJECTS.forEach(p => loadEntries(p.id)); loadContacts(); }
+  render();
+}
+
+/* ---------- render: entries (shared by view page) ---------- */
+
+function isStale(e){
+  if(e.status !== 'pending' && e.status !== 'partial') return false;
+  const d = new Date(e.date + 'T00:00:00');
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 3);
+  return d <= cutoff;
+}
+
+function renderEntryActions(e, projectId){
+  if(state.deletingId === e.id && state.deletingProjectId === projectId){
+    return `
+      <div class="delete-reason-box">
+        <textarea id="delete-reason-input" placeholder="Αιτιολογία διαγραφής…"></textarea>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-sm btn-danger" data-action="delete-confirm" data-id="${e.id}" data-project="${projectId}">Διαγραφή</button>
+          <button class="btn btn-sm btn-quiet" data-action="delete-cancel">Άκυρο</button>
+        </div>
+      </div>`;
+  }
+  const editButton = `<button class="btn btn-sm btn-quiet" data-action="edit-open" data-id="${e.id}" data-project="${projectId}">✎ Επεξεργασία</button>`;
+  const receiptButton = `<button class="btn btn-sm btn-quiet" data-action="download-receipt" data-id="${e.id}" data-project="${projectId}">⬇ Εκτύπωση</button>`;
+  if(e.status === 'deleted'){
+    return `<button class="btn btn-sm btn-quiet" data-action="revert-deleted" data-id="${e.id}" data-project="${projectId}">↺ Επαναφορά</button>`;
+  }
+  if(e.status === 'done'){
+    return `
+      <div class="row">
+        <button class="btn btn-sm btn-quiet" data-action="revert" data-id="${e.id}" data-project="${projectId}">↺ Επαναφορά</button>
+        <button class="btn btn-sm btn-danger" data-action="delete-ask" data-id="${e.id}" data-project="${projectId}">Διαγραφή</button>
+      </div>
+      ${editButton}
+      ${receiptButton}`;
+  }
+  return `
+    <button class="btn btn-sm btn-done" data-action="done" data-id="${e.id}" data-project="${projectId}">✓ Ολοκληρώθηκε</button>
+    <button class="btn btn-sm btn-partial" data-action="partial-open" data-id="${e.id}" data-project="${projectId}">${e.status==='partial' ? '✎ Ενημέρωση' : '½ Μερική'}</button>
+    ${editButton}
+    ${receiptButton}
+    <button class="btn btn-sm btn-danger" data-action="delete-ask" data-id="${e.id}" data-project="${projectId}">Διαγραφή</button>
+  `;
+}
+
+function renderPartialNotes(e){
+  const notes = (e.partialNotes && e.partialNotes.length)
+    ? e.partialNotes
+    : (e.partialNote ? [{date: e.date, text: e.partialNote}] : []);
+  if(!notes.length) return '';
+  return `<div class="entry-partial-note">${notes.map(n =>
+    `<div class="partial-note-line">${toDisplayDate(n.date)}: ${esc(n.text)}</div>`
+  ).join('')}</div>`;
+}
+
+function renderEntry(e, projectId, priority, opts={}){
+  const cls = e.status === 'partial' ? 'partial' : (e.status === 'done' ? 'done' : (e.status === 'deleted' ? 'deleted' : ''));
+  let extra = '';
+  if(e.status === 'partial'){
+    extra = renderPartialNotes(e);
+  }
+  if(e.status === 'done'){
+    extra = `<div class="entry-completed-date">Ολοκληρώθηκε: ${toDisplayDate(e.completedDate)}</div>`;
+  }
+  if(e.status === 'deleted'){
+    extra = `<div class="entry-deleted-note">Διαγράφηκε: ${toDisplayDate(e.deletedDate)}${e.deleteReason ? ` — ${esc(e.deleteReason)}` : ''}</div>`;
+  }
+  let editBox = '';
+  if(state.editingPartialId === e.id && state.editingPartialProjectId === projectId){
+    editBox = `
+      <div class="partial-edit">
+        <textarea id="partial-note-input" placeholder="π.χ. πήρε 0,5kW αντί για 1kW — παραμένει ενεργό αίτημα για 0,5kW ακόμη"></textarea>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <button class="btn btn-sm btn-partial" data-action="partial-save" data-id="${e.id}" data-project="${projectId}">Προσθήκη σχολίου</button>
+          <button class="btn btn-sm btn-quiet" data-action="partial-cancel">Άκυρο</button>
+        </div>
+      </div>`;
+  }
+  let projectBadge = '';
+  if(opts.showProject){
+    const proj = PROJECTS.find(p=>p.id===projectId);
+    if(proj){
+      const cw = TAB_COLORWAYS[proj.color];
+      projectBadge = `<span class="badge-partial" style="color:${cw.dark}; background:${cw.soft}; border-color:${cw.c};">${esc(proj.name)}</span>`;
+    }
+  }
+  const staleBadge = isStale(e)
+    ? `<span class="badge-partial" style="color:var(--danger); background:var(--danger-bg); border-color:var(--danger);">⏳ 3+ μήνες</span>`
+    : '';
+
+  if(state.editingEntryId === e.id && state.editingEntryProjectId === projectId){
+    const {last, first} = nameParts(e);
+    return `
+    <div class="entry editing">
+      <div class="entry-date">
+        ${priority ? `<div class="entry-priority">#${priority}</div>` : ''}
+        ${toDisplayDate(e.date)}
+      </div>
+      <div class="entry-body edit-form">
+        <div class="edit-row">
+          <div class="field"><label>Επώνυμο</label><input type="text" id="edit-lastname" value="${esc(last)}"></div>
+          <div class="field"><label>Όνομα</label><input type="text" id="edit-firstname" value="${esc(first)}"></div>
+        </div>
+        <div class="edit-row">
+          <div class="field"><label>ΑΦΜ</label><input type="text" id="edit-afm" value="${esc(e.afm||'')}" inputmode="numeric"></div>
+          <div class="field"><label>Αριθμός παροχής</label><input type="text" id="edit-supply" value="${esc(e.supplyNumber||'')}" inputmode="numeric"></div>
+        </div>
+        <div class="edit-row">
+          <div class="field"><label>Στοιχεία επικοινωνίας</label><input type="text" id="edit-contact" value="${esc(e.contactInfo||'')}"></div>
+          <div class="field"><label>Επικοινωνία με</label><input type="text" id="edit-contact-name" value="${esc(e.contactPersonName||'')}"></div>
+        </div>
+        <div class="field"><label>Περιγραφή αλλαγής</label><textarea id="edit-desc" rows="2">${esc(e.description)}</textarea></div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-sm btn-primary" data-action="edit-save" data-id="${e.id}" data-project="${projectId}">Αποθήκευση</button>
+          <button class="btn btn-sm btn-quiet" data-action="edit-cancel">Άκυρο</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  return `
+    <div class="entry ${cls}">
+      <div class="entry-date">
+        ${priority ? `<div class="entry-priority">#${priority}</div>` : ''}
+        ${toDisplayDate(e.date)}
+      </div>
+      <div class="entry-body">
+        <div class="entry-name">${renderName(e)}${e.status==='partial' ? '<span class="badge-partial">Μερική</span>' : ''}${staleBadge}${projectBadge}</div>
+        <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', e.contactInfo ? esc(e.contactInfo) : ''].filter(Boolean).join(' · ')}</div>
+        <div class="entry-desc">${esc(e.description)}</div>
+        ${extra}
+        ${editBox}
+      </div>
+      <div class="entry-actions">${renderEntryActions(e, projectId)}</div>
+    </div>`;
+}
+
+/* ---------- render: SEARCH page ---------- */
+
+const STATUS_LABEL = {pending:'Εκκρεμεί', partial:'Μερική ολοκλήρωση', done:'Ολοκληρώθηκε', deleted:'Διαγραμμένη'};
+
+function getPendingSorted(projectId){
+  return (state.entries[projectId]||[]).filter(e=>e.status==='pending' || e.status==='partial')
+    .sort((a,b)=> a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+}
+
+function renderSearchResult(e, proj, priority){
+  const cw = TAB_COLORWAYS[proj.color];
+  const cls = e.status === 'partial' ? 'partial' : (e.status === 'done' ? 'done' : '');
+  let extra = '';
+  if(e.status === 'partial'){
+    extra = renderPartialNotes(e);
+  }
+  if(e.status === 'done'){
+    extra = `<div class="entry-completed-date">Ολοκληρώθηκε: ${toDisplayDate(e.completedDate)}</div>`;
+  }
+  return `
+    <div class="entry ${cls}">
+      <div class="entry-date">
+        ${priority ? `<div class="entry-priority">#${priority}</div>` : ''}
+        ${toDisplayDate(e.date)}
+      </div>
+      <div class="entry-body">
+        <div class="entry-name">${renderName(e)}${isStale(e) ? '<span class="badge-partial" style="color:var(--danger); background:var(--danger-bg); border-color:var(--danger);">⏳ 3+ μήνες</span>' : ''}</div>
+        <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', e.contactInfo ? esc(e.contactInfo) : ''].filter(Boolean).join(' · ')}</div>
+        <div style="margin:4px 0 6px;">
+          <span class="badge-partial" style="color:${cw.dark}; background:${cw.soft}; border-color:${cw.c};">${esc(proj.name)}</span>
+          <span class="badge-partial" style="margin-left:4px;">${STATUS_LABEL[e.status]}</span>
+        </div>
+        <div class="entry-desc">${esc(e.description)}</div>
+        ${extra}
+      </div>
+      <div class="entry-actions">
+        <button class="btn btn-sm btn-quiet" data-action="open-in-project" data-id="${proj.id}">Άνοιγμα στο έργο →</button>
+        <button class="btn btn-sm btn-quiet" data-action="download-receipt" data-id="${e.id}" data-project="${proj.id}">⬇ Εκτύπωση</button>
+      </div>
+    </div>`;
+}
+
+function renderSearch(){
+  const q = state.searchQuery.trim().toLowerCase();
+  const stillLoading = PROJECTS.some(p => state.entries[p.id] === undefined);
+
+  let resultsHtml = '';
+  if(!q){
+    resultsHtml = `<div class="empty-state">Γράψε ονοματεπώνυμο ή ΑΦΜ για να δεις τις αλλαγές του, σε όλα τα έργα.</div>`;
+  } else if(stillLoading){
+    resultsHtml = `<div class="empty-state">Φόρτωση…</div>`;
+  } else {
+    let matches = [];
+    PROJECTS.forEach(p=>{
+      (state.entries[p.id]||[]).forEach(e=>{
+        const nameHit = fullName(e).toLowerCase().includes(q);
+        const afmHit = e.afm && e.afm.includes(state.searchQuery.trim());
+        if(nameHit || afmHit) matches.push({e, proj:p});
+      });
+    });
+    matches.sort((a,b)=> a.e.date < b.e.date ? 1 : a.e.date > b.e.date ? -1 : 0);
+
+    resultsHtml = matches.length
+      ? matches.map(m => {
+          const priority = (m.e.status === 'pending' || m.e.status === 'partial')
+            ? getPendingSorted(m.proj.id).findIndex(x=>x.id===m.e.id) + 1
+            : null;
+          return renderSearchResult(m.e, m.proj, priority);
+        }).join('')
+      : `<div class="empty-state">Καμία αλλαγή δεν βρέθηκε για "${esc(state.searchQuery.trim())}".</div>`;
+  }
+
+  return `
+    <div class="home-wrap">
+      <div class="kicker">Αναζήτηση σε όλα τα έργα</div>
+      <h2>Αναζήτηση αλλαγής</h2>
+      <div class="reg-form" style="margin-bottom:24px;">
+        <div class="field" style="margin-bottom:0;">
+          <label for="in-search">Ονοματεπώνυμο ή ΑΦΜ</label>
+          <input type="text" id="in-search" placeholder="π.χ. Παπαδόπουλος ή 123456789" value="${esc(state.searchQuery)}" autocomplete="off">
+        </div>
+      </div>
+      ${q ? `<div style="margin-bottom:14px;"><button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="search">⬇ Excel με τα αποτελέσματα</button></div>` : ''}
+      ${resultsHtml}
+    </div>`;
+}
+
+/* ---------- render: STATS page ---------- */
+
+function daysBetween(d1, d2){
+  const a = new Date(d1 + 'T00:00:00');
+  const b = new Date(d2 + 'T00:00:00');
+  return Math.round((b - a) / 86400000);
+}
+
+function renderPieChart(segments){
+  const total = segments.reduce((s,x)=>s+x.value,0);
+  if(!total){
+    return `<div class="empty-state">Δεν υπάρχουν ακόμη δεδομένα.</div>`;
+  }
+  let acc = 0;
+  const stops = segments.filter(s=>s.value>0).map(seg => {
+    const start = (acc/total*100);
+    acc += seg.value;
+    const end = (acc/total*100);
+    return `${seg.color} ${start}% ${end}%`;
+  }).join(', ');
+  const legend = segments.map(seg => `
+    <div class="pie-legend-item"><span class="pie-dot" style="background:${seg.color};"></span>${esc(seg.label)} — ${seg.value} (${Math.round(seg.value/total*100)}%)</div>
+  `).join('');
+  return `<div class="pie-wrap">
+    <div class="pie-chart" style="background: conic-gradient(${stops});"></div>
+    <div class="pie-legend">${legend}</div>
+  </div>`;
+}
+
+function renderMonthlyChart(doneList){
+  const months = [];
+  for(let i=5; i>=0; i--){
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth()-i);
+    months.push({key: d.toISOString().slice(0,7), label: d.toLocaleDateString('el-GR', {month:'short'})});
+  }
+  const counts = months.map(m => doneList.filter(e => (e.completedDate||'').slice(0,7) === m.key).length);
+  const max = Math.max(1, ...counts);
+  const bars = months.map((m,i) => `
+    <div class="month-bar-col">
+      <div class="month-bar-track"><div class="month-bar-fill" style="height:${counts[i]===0?0:Math.max(6, Math.round(counts[i]/max*100))}%;"></div></div>
+      <div class="month-bar-count">${counts[i]}</div>
+      <div class="month-bar-label">${esc(m.label)}</div>
+    </div>`).join('');
+  return `<div class="month-chart">${bars}</div>`;
+}
+
+function renderStats(){
+  const allLoaded = PROJECTS.every(p => state.entries[p.id] !== undefined);
+  if(!allLoaded || state.contacts === undefined){
+    return `<div class="stats-wrap"><div class="kicker">Στατιστικά</div><h2>Μια ματιά στο σύνολο</h2><div class="empty-state">Φόρτωση…</div></div>`;
+  }
+
+  let all = [];
+  PROJECTS.forEach(p => (state.entries[p.id]||[]).forEach(e => all.push({e, projectId:p.id})));
+
+  const pending = all.filter(x=>x.e.status==='pending');
+  const partial = all.filter(x=>x.e.status==='partial');
+  const done = all.filter(x=>x.e.status==='done');
+  const deleted = all.filter(x=>x.e.status==='deleted');
+  const activePending = pending.length + partial.length;
+  const total = all.length;
+
+  const completionRate = total ? Math.round((done.length / total) * 100) : 0;
+
+  const durations = done.map(x => daysBetween(x.e.date, x.e.completedDate)).filter(n => !isNaN(n) && n >= 0);
+  const avgDays = durations.length ? Math.round(durations.reduce((a,b)=>a+b,0) / durations.length) : null;
+
+  const today = todayISO();
+  const thisMonthKey = today.slice(0,7);
+  const doneThisMonth = done.filter(x => (x.e.completedDate||'').slice(0,7) === thisMonthKey).length;
+  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate()-7);
+  const weekAgoISO = weekAgo.toISOString().slice(0,10);
+  const doneThisWeek = done.filter(x => x.e.completedDate && x.e.completedDate >= weekAgoISO).length;
+
+  let oldest = null;
+  [...pending, ...partial].forEach(x => {
+    const age = daysBetween(x.e.date, today);
+    if(!oldest || age > oldest.age) oldest = {...x, age};
+  });
+
+  const maxProjectPending = Math.max(1, ...PROJECTS.map(p => (state.entries[p.id]||[]).filter(e=>e.status==='pending'||e.status==='partial').length));
+  const projectBars = PROJECTS.map(p => {
+    const count = (state.entries[p.id]||[]).filter(e=>e.status==='pending'||e.status==='partial').length;
+    const cw = TAB_COLORWAYS[p.color];
+    const pct = Math.round((count / maxProjectPending) * 100);
+    return `<div class="stat-bar-row">
+      <div class="bar-label">${esc(p.name)}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${cw.c};"></div></div>
+      <div class="bar-count">${count}</div>
+    </div>`;
+  }).join('');
+
+  const highlight = done.length > 0
+    ? `Έχεις ολοκληρώσει <strong>${done.length}</strong> αλλαγ${done.length===1?'ή':'ές'} μέχρι στιγμής — συνέχισε έτσι! 🎉`
+    : `Δεν έχεις ολοκληρώσει ακόμη καμία αλλαγή — η πρώτη είναι πάντα η πιο δύσκολη.`;
+
+  return `
+    <div class="stats-wrap">
+      <div class="kicker">Στατιστικά</div>
+      <h2>Μια ματιά στο σύνολο</h2>
+
+      <div class="stat-highlight">${highlight}</div>
+
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-number">${total}</div><div class="stat-label">Σύνολο καταχωρημένων αλλαγών</div></div>
+        <div class="stat-card"><div class="stat-number">${activePending}</div><div class="stat-label">Εκκρεμούν τώρα</div></div>
+        <div class="stat-card"><div class="stat-number">${done.length}</div><div class="stat-label">Ολοκληρώθηκαν συνολικά</div></div>
+        <div class="stat-card"><div class="stat-number">${deleted.length}</div><div class="stat-label">Διαγράφηκαν</div></div>
+        <div class="stat-card"><div class="stat-number">${state.contacts.length}</div><div class="stat-label">Μέλη στον Κατάλογο</div></div>
+        <div class="stat-card"><div class="stat-number">${doneThisMonth}</div><div class="stat-label">Ολοκληρώθηκαν αυτόν τον μήνα</div></div>
+        <div class="stat-card"><div class="stat-number">${doneThisWeek}</div><div class="stat-label">Ολοκληρώθηκαν τις τελευταίες 7 μέρες</div></div>
+        <div class="stat-card"><div class="stat-number">${avgDays!==null ? avgDays : '—'}</div><div class="stat-label">Μέσος χρόνος ολοκλήρωσης (ημέρες)</div></div>
+      </div>
+
+      <div class="stat-card" style="margin-bottom:32px;">
+        <div class="stat-label" style="margin-bottom:2px;">Ποσοστό ολοκλήρωσης</div>
+        <div class="stat-number" style="font-size:22px;">${completionRate}%</div>
+        <div class="progress-track"><div class="progress-fill" style="width:${completionRate}%;"></div></div>
+      </div>
+
+      ${oldest ? `
+      <div class="stat-card" style="margin-bottom:32px;">
+        <div class="stat-label" style="margin-bottom:6px;">Παλαιότερη ενεργή εκκρεμότητα</div>
+        <div style="font-size:14px; font-weight:600;">${renderName(oldest.e)} — ${oldest.age} μέρες</div>
+        <div style="font-size:12.5px; color:var(--ink-soft); margin-top:2px;">${esc((PROJECTS.find(p=>p.id===oldest.projectId)||{}).name || '')} · καταχωρήθηκε ${toDisplayDate(oldest.e.date)}</div>
+      </div>` : ''}
+
+      <div class="charts-row">
+        <div class="chart-card">
+          <div class="stat-section-title">Κατάσταση αλλαγών</div>
+          ${renderPieChart([
+            {label:'Εκκρεμούν', value: pending.length, color:'#5C6B77'},
+            {label:'Μερική ολοκλήρωση', value: partial.length, color:'#F2790A'},
+            {label:'Ολοκληρώθηκαν', value: done.length, color:'#189A57'},
+            {label:'Διαγράφηκαν', value: deleted.length, color:'#D64545'},
+          ])}
+        </div>
+        <div class="chart-card">
+          <div class="stat-section-title">Ολοκληρώσεις τους τελευταίους 6 μήνες</div>
+          ${renderMonthlyChart(done.map(x=>x.e))}
+        </div>
+      </div>
+
+      <div class="stat-section-title">Εκκρεμότητες ανά έργο</div>
+      <div class="stat-bars">${projectBars}</div>
+    </div>`;
+}
+
+/* ---------- render: CONTACTS page ---------- */
+
+function renderContacts(){
+  if(state.contactsLoading || state.contacts === undefined){
+    return `
+      <div class="contacts-wrap">
+        <div class="kicker">Κατάλογος επικοινωνίας</div>
+        <h2>Στοιχεία επικοινωνίας μελών</h2>
+        <div class="empty-state">Φόρτωση…</div>
+      </div>`;
+  }
+
+  const q = state.contactsSearchQuery.trim().toLowerCase();
+  let rows = [...state.contacts];
+
+  if(q){
+    rows = rows.filter(r => fullName(r).toLowerCase().includes(q) || (r.afm && r.afm.includes(state.contactsSearchQuery.trim())));
+  }
+  if(state.contactsProjectFilter !== 'all'){
+    rows = rows.filter(r => (r.projectIds||[]).includes(state.contactsProjectFilter));
+  }
+  if(state.contactsTypeFilter !== 'all'){
+    rows = rows.filter(r => r.contacts.some(c => contactValueType(c.value) === state.contactsTypeFilter));
+  }
+  rows.sort((a,b)=> {
+    const pa = nameParts(a), pb = nameParts(b);
+    return pa.last.localeCompare(pb.last, 'el') || pa.first.localeCompare(pb.first, 'el');
+  });
+
+  const projectOptionsHtml = PROJECTS.map(p =>
+    `<option value="${p.id}" ${state.contactsProjectFilter===p.id?'selected':''}>${esc(p.name)}</option>`
+  ).join('');
+
+  let tableHtml;
+  if(state.contacts.length === 0){
+    tableHtml = `<div class="empty-state">Δεν υπάρχουν ακόμη καταχωρημένα στοιχεία επικοινωνίας.<br>Προστίθενται αυτόματα κάθε φορά που καταχωρείς αίτημα.</div>`;
+  } else if(rows.length === 0){
+    tableHtml = `<div class="empty-state">Κανένα αποτέλεσμα με αυτά τα φίλτρα.</div>`;
+  } else {
+    tableHtml = `
+      <div class="contact-table-scroll">
+        <table class="contact-table">
+          <colgroup>
+            <col class="col-lastname">
+            <col class="col-firstname">
+            <col class="col-afm">
+            <col class="col-projects">
+            <col class="col-values">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Επώνυμο</th>
+              <th>Όνομα</th>
+              <th>ΑΦΜ</th>
+              <th>Έργα</th>
+              <th>Στοιχεία επικοινωνίας</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => {
+              const {last, first} = nameParts(r);
+              const projBadges = (r.projectIds||[]).map(pid => {
+                const p = PROJECTS.find(x=>x.id===pid);
+                if(!p) return '';
+                const cw = TAB_COLORWAYS[p.color];
+                return `<span class="badge-partial" style="color:${cw.dark}; background:${cw.soft}; border-color:${cw.c}; margin:0 4px 4px 0; display:inline-block;">${esc(p.name)}</span>`;
+              }).join('') || '—';
+              return `
+              <tr>
+                <td class="col-lastname">${esc(last)}</td>
+                <td class="col-firstname">${esc(first)}</td>
+                <td class="col-afm">${r.afm ? esc(r.afm) : '—'}</td>
+                <td class="col-projects">${projBadges}</td>
+                <td class="col-values">
+                  ${r.contacts.length
+                    ? r.contacts.map(c => `<div class="value-line">${esc(c.value)}${c.personName ? ` <span class="who">(${esc(c.personName)})</span>` : ''}</div>`).join('')
+                    : '—'}
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  return `
+    <div class="contacts-wrap">
+      <div class="kicker">Κατάλογος επικοινωνίας</div>
+      <h2>Στοιχεία επικοινωνίας μελών</h2>
+      <div class="contacts-toolbar">
+        <div class="contacts-filters">
+          <div class="field" style="margin-bottom:0;">
+            <label for="in-contacts-search">Αναζήτηση</label>
+            <input type="text" id="in-contacts-search" placeholder="όνομα ή ΑΦΜ" value="${esc(state.contactsSearchQuery)}" autocomplete="off">
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label for="in-contacts-project">Έργο</label>
+            <select id="in-contacts-project">
+              <option value="all" ${state.contactsProjectFilter==='all'?'selected':''}>Όλα τα έργα</option>
+              ${projectOptionsHtml}
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label for="in-contacts-type">Στοιχείο επικοινωνίας</label>
+            <select id="in-contacts-type">
+              <option value="all" ${state.contactsTypeFilter==='all'?'selected':''}>Όλα</option>
+              <option value="phone" ${state.contactsTypeFilter==='phone'?'selected':''}>Μόνο με τηλέφωνο</option>
+              <option value="email" ${state.contactsTypeFilter==='email'?'selected':''}>Μόνο με email</option>
+            </select>
+          </div>
+        </div>
+        <div class="contacts-count">
+          ${rows.length} από ${state.contacts.length} καταχωρημένα άτομα
+          <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="contacts" style="margin-left:10px;">⬇ Excel</button>
+        </div>
+      </div>
+      ${tableHtml}
+    </div>`;
+}
+
+function renderAccount(){
+  return `
+    <div class="home-wrap">
+      <div class="kicker">Ο λογαριασμός μου</div>
+      <h2>Αλλαγή κωδικού</h2>
+      <div class="reg-form" style="max-width:420px;">
+        <div class="field">
+          <label for="pw-current">Τρέχων κωδικός</label>
+          <input type="password" id="pw-current" autocomplete="current-password">
+        </div>
+        <div class="field">
+          <label for="pw-new">Νέος κωδικός</label>
+          <input type="password" id="pw-new" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label for="pw-confirm">Επιβεβαίωση νέου κωδικού</label>
+          <input type="password" id="pw-confirm" autocomplete="new-password">
+        </div>
+        <button class="btn btn-primary btn-block" id="btn-change-password">Αλλαγή κωδικού</button>
+      </div>
+    </div>`;
+}
+
+function renderHome(){
+  const optionsHtml = PROJECTS.map(p=>{
+    const selected = p.id === state.homeSelectedProject;
+    return `<option value="${p.id}" ${selected?'selected':''}>${esc(p.name)}</option>`;
+  }).join('');
+
+  return `
+    <div class="home-wrap">
+      <details class="completed-wrap" style="margin-bottom:22px;">
+        <summary>⇅ Μαζική εισαγωγή από Excel</summary>
+        <div class="completed-body">
+          <p style="font-size:13px; color:var(--ink-soft); margin:0 0 12px;">
+            Κατέβασε πρώτα το πρότυπο, συμπλήρωσε μία γραμμή ανά αίτημα, και ανέβασέ το ξανά εδώ.
+            Υποχρεωτικές στήλες: Επώνυμο, Όνομα, Αριθμός Παροχής, Έργο (ακριβές όνομα έργου), Περιγραφή.
+          </p>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <button class="btn btn-sm btn-quiet" data-action="download-template">⬇ Λήψη προτύπου Excel</button>
+            <button class="btn btn-sm btn-primary" data-action="trigger-import">⬆ Εισαγωγή από Excel</button>
+            <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;">
+          </div>
+        </div>
+      </details>
+
+      <div class="kicker">Νέο αίτημα αλλαγής</div>
+      <h2>Καταχώρηση αιτήματος</h2>
+
+      <div class="reg-form">
+        <div class="field">
+          <label for="in-supply">Αριθμός παροχής</label>
+          <input type="text" id="in-supply" placeholder="π.χ. 55456783101" inputmode="numeric">
+          <div class="field-hint" id="supply-hint" style="display:none;">Ο αριθμός παροχής έχει έως 11 ψηφία — δεν μπαίνουν άλλα.</div>
+        </div>
+        <div class="field">
+          <label for="in-project">Έργο</label>
+          <select id="in-project">${optionsHtml}</select>
+        </div>
+        <div class="reg-row2">
+          <div class="field">
+            <label for="in-date">Ημερομηνία</label>
+            <input type="date" id="in-date" value="${todayISO()}">
+          </div>
+        </div>
+        <div class="reg-row2">
+          <div class="field" style="position:relative;">
+            <label for="in-lastname">Επώνυμο</label>
+            <input type="text" id="in-lastname" placeholder="π.χ. Παπαδόπουλος" autocomplete="off">
+            <div id="contact-suggestions" class="suggestions-box" style="display:none;"></div>
+          </div>
+          <div class="field">
+            <label for="in-firstname">Όνομα</label>
+            <input type="text" id="in-firstname" placeholder="π.χ. Γιώργος" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="in-afm">ΑΦΜ</label>
+            <input type="text" id="in-afm" placeholder="π.χ. 123456789" inputmode="numeric">
+            <div class="field-hint" id="afm-hint" style="display:none;">Το ΑΦΜ έχει ακριβώς 9 ψηφία — δεν μπαίνουν άλλα.</div>
+          </div>
+        </div>
+        <div id="dup-warning" class="field-hint" style="display:none; margin-top:-10px; margin-bottom:16px;"></div>
+        <div class="reg-row2">
+          <div class="field">
+            <label for="in-contact">Στοιχεία επικοινωνίας</label>
+            <input type="text" id="in-contact" placeholder="τηλέφωνο ή email">
+          </div>
+          <div class="field">
+            <label for="in-contact-name">Επικοινωνία με <span style="font-weight:400; opacity:.75;">(προαιρετικό)</span></label>
+            <input type="text" id="in-contact-name" placeholder="π.χ. σύζυγος, πατέρας…">
+          </div>
+        </div>
+        <div class="field">
+          <label for="in-desc">Περιγραφή αλλαγής</label>
+          <textarea id="in-desc" rows="3" placeholder="π.χ. Αύξηση ισχύος κατά 1kW"></textarea>
+        </div>
+        <button class="btn btn-primary btn-block" id="btn-add">+ Καταχώρηση αιτήματος</button>
+      </div>
+    </div>`;
+}
+
+/* ---------- render: VIEW page ---------- */
+
+function entryMatchesQuery(e, q){
+  if(!q) return true;
+  return fullName(e).toLowerCase().includes(q)
+    || (e.afm && e.afm.includes(q))
+    || (e.supplyNumber && e.supplyNumber.toLowerCase().includes(q));
+}
+
+function renderView(){
+  const isAll = state.currentProject === ALL_ID;
+  const proj = isAll ? null : PROJECTS.find(p=>p.id===state.currentProject);
+  const loaded = isAll ? null : state.entries[state.currentProject];
+  const loading = isAll ? null : state.loading[state.currentProject];
+  const allLoaded = PROJECTS.every(p => state.entries[p.id] !== undefined);
+
+  const allPendingCount = PROJECTS.reduce((sum,p) => {
+    const l = state.entries[p.id];
+    return sum + (l ? l.filter(e=>e.status==='pending'||e.status==='partial').length : 0);
+  }, 0);
+
+  const allTabStyle = state.currentProject===ALL_ID
+    ? ` style="--tab-c:${TAB_COLORWAYS.all.c}; --tab-soft:${TAB_COLORWAYS.all.soft}; --tab-dark:${TAB_COLORWAYS.all.dark};"`
+    : '';
+  const allTabHtml = `
+      <button class="tab ${state.currentProject===ALL_ID?'active':''}" data-action="switch" data-id="${ALL_ID}"${allTabStyle}>
+        <span class="letter">Σ</span>
+        <span>Όλα τα έργα</span>
+        <span class="count ${allPendingCount>0?'has-items':''}">${allPendingCount}</span>
+      </button>`;
+
+  const tabsHtml = allTabHtml + PROJECTS.map(p=>{
+    const list = state.entries[p.id];
+    const pendingCount = list ? list.filter(e=>e.status==='pending' || e.status==='partial').length : null;
+    const active = p.id === state.currentProject;
+    const cw = TAB_COLORWAYS[p.color];
+    const style = active ? ` style="--tab-c:${cw.c}; --tab-soft:${cw.soft}; --tab-dark:${cw.dark};"` : '';
+    return `
+      <button class="tab ${active?'active':''}" data-action="switch" data-id="${p.id}"${style}>
+        <span class="letter">${p.letter}</span>
+        <span>${esc(p.name.replace(/^[ΑΒΓ]\s*/,''))}</span>
+        ${pendingCount!==null ? `<span class="count ${pendingCount>0?'has-items':''}">${pendingCount}</span>` : ''}
+      </button>`;
+  }).join('');
+
+  let mainHtml = '';
+
+  if(isAll){
+    if(!allLoaded){
+      mainHtml = `<div class="empty-state">Φόρτωση…</div>`;
+    } else {
+      const q = state.viewSearchQuery.trim().toLowerCase();
+
+      let combinedPending = [];
+      PROJECTS.forEach(p => {
+        getPendingSorted(p.id).forEach(e => combinedPending.push({e, projectId: p.id}));
+      });
+      combinedPending.sort((a,b)=> a.e.date < b.e.date ? -1 : a.e.date > b.e.date ? 1 : 0);
+      const pendingWithPriority = combinedPending.map((row,i) => ({...row, priority: i+1})).filter(({e}) => entryMatchesQuery(e, q));
+
+      let displayList = pendingWithPriority;
+      if(state.viewSort === 'alpha'){
+        displayList = [...pendingWithPriority].sort((a,b)=> fullName(a.e).localeCompare(fullName(b.e), 'el'));
+      } else if(state.viewSort === 'newest'){
+        displayList = [...pendingWithPriority].reverse();
+      }
+
+      let combinedDone = [];
+      let combinedDeleted = [];
+      PROJECTS.forEach(p => {
+        (state.entries[p.id]||[]).forEach(e => {
+          if(e.status==='done' && entryMatchesQuery(e,q)) combinedDone.push({e, projectId:p.id});
+          if(e.status==='deleted' && entryMatchesQuery(e,q)) combinedDeleted.push({e, projectId:p.id});
+        });
+      });
+      combinedDone.sort((a,b)=> (b.e.completedDate||'').localeCompare(a.e.completedDate||''));
+      combinedDeleted.sort((a,b)=> (b.e.deletedDate||'').localeCompare(a.e.deletedDate||''));
+
+      const pendingHtml = displayList.length
+        ? displayList.map(({e, projectId, priority}) => renderEntry(e, projectId, priority, {showProject:true})).join('')
+        : (q ? `<div class="empty-state">Καμία εκκρεμότητα δεν ταιριάζει με "${esc(state.viewSearchQuery.trim())}".</div>`
+             : `<div class="empty-state">Δεν υπάρχουν εκκρεμότητες σε κανένα έργο.</div>`);
+
+      const partialCount = combinedPending.filter(({e})=>e.status==='partial').length;
+
+      const doneHtml = combinedDone.length
+        ? combinedDone.map(({e, projectId}) => renderEntry(e, projectId, null, {showProject:true})).join('')
+        : (q ? `<div class="empty-state">Καμία ολοκληρωμένη δεν ταιριάζει με την αναζήτηση.</div>` : `<div class="empty-state">Καμία ολοκληρωμένη αλλαγή ακόμη.</div>`);
+
+      const deletedHtml = combinedDeleted.length
+        ? combinedDeleted.map(({e, projectId}) => renderEntry(e, projectId, null, {showProject:true})).join('')
+        : (q ? `<div class="empty-state">Καμία διαγραμμένη δεν ταιριάζει με την αναζήτηση.</div>` : `<div class="empty-state">Καμία διαγραμμένη αλλαγή.</div>`);
+
+      mainHtml = `
+        <div class="project-title">Όλα τα έργα</div>
+        <div class="project-sub">${combinedPending.length} εκκρεμότητ${combinedPending.length===1?'α':'ες'}${partialCount?` · ${partialCount} μερικ${partialCount===1?'ή':'ές'}`:''} · ${combinedDone.length} ολοκληρωμέν${combinedDone.length===1?'η':'ες'}${combinedDeleted.length ? ` · ${combinedDeleted.length} διαγραμμέν${combinedDeleted.length===1?'η':'ες'}` : ''}</div>
+
+        <div class="field" style="max-width:340px; margin-bottom:20px;">
+          <label for="in-view-search">Αναζήτηση σε όλα τα έργα</label>
+          <input type="text" id="in-view-search" placeholder="όνομα, ΑΦΜ ή αριθμός παροχής" value="${esc(state.viewSearchQuery)}" autocomplete="off">
+        </div>
+
+        <section class="list-section">
+          <div class="section-head">
+            <h2>Εκκρεμότητες</h2>
+            <span class="muted">παλαιότερη πρώτη, από όλα τα έργα</span>
+            <select id="in-view-sort" style="margin-left:auto;">
+              <option value="priority" ${state.viewSort==='priority'?'selected':''}>Ταξινόμηση: Προτεραιότητα</option>
+              <option value="alpha" ${state.viewSort==='alpha'?'selected':''}>Ταξινόμηση: Αλφαβητικά (Α-Ω)</option>
+              <option value="newest" ${state.viewSort==='newest'?'selected':''}>Ταξινόμηση: Νεότερες πρώτα</option>
+            </select>
+            <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="all-pending">⬇ Excel</button>
+            <button class="btn btn-sm btn-quiet" data-action="print-view">🖨 Λήψη για εκτύπωση</button>
+          </div>
+          ${pendingHtml}
+        </section>
+
+        <details class="completed-wrap" style="margin-bottom:10px;" ${q && combinedDone.length ? 'open' : ''}>
+          <summary>Ολοκληρωμένες (${combinedDone.length}) <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="all-done" style="margin-left:10px;">⬇ Excel</button></summary>
+          <div class="completed-body">${doneHtml}</div>
+        </details>
+
+        <details class="completed-wrap" ${q && combinedDeleted.length ? 'open' : ''}>
+          <summary>Διαγραμμένες (${combinedDeleted.length}) <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="all-deleted" style="margin-left:10px;">⬇ Excel</button></summary>
+          <div class="completed-body">${deletedHtml}</div>
+        </details>
+      `;
+    }
+  } else if(loading || loaded === undefined){
+    mainHtml = `<div class="empty-state">Φόρτωση…</div>`;
+  } else {
+    const q = state.viewSearchQuery.trim().toLowerCase();
+
+    const pending = getPendingSorted(state.currentProject);
+    const pendingWithPriority = pending.map((e,i) => ({e, priority: i+1})).filter(({e}) => entryMatchesQuery(e, q));
+
+    let displayList = pendingWithPriority;
+    if(state.viewSort === 'alpha'){
+      displayList = [...pendingWithPriority].sort((a,b)=> fullName(a.e).localeCompare(fullName(b.e), 'el'));
+    } else if(state.viewSort === 'newest'){
+      displayList = [...pendingWithPriority].reverse();
+    }
+
+    const done = loaded.filter(e=>e.status==='done' && entryMatchesQuery(e, q)).sort((a,b)=> (b.completedDate||'').localeCompare(a.completedDate||''));
+    const deleted = loaded.filter(e=>e.status==='deleted' && entryMatchesQuery(e, q)).sort((a,b)=> (b.deletedDate||'').localeCompare(a.deletedDate||''));
+
+    const pendingHtml = displayList.length
+      ? displayList.map(({e, priority}) => renderEntry(e, state.currentProject, priority)).join('')
+      : (q ? `<div class="empty-state">Καμία εκκρεμότητα δεν ταιριάζει με "${esc(state.viewSearchQuery.trim())}".</div>`
+           : `<div class="empty-state">Δεν υπάρχουν εκκρεμότητες για αυτό το έργο.<br>Πήγαινε στην "Καταχώρηση" για να προσθέσεις.</div>`);
+
+    const partialCount = pending.filter(e=>e.status==='partial').length;
+
+    const doneHtml = done.length
+      ? done.map(e => renderEntry(e, state.currentProject)).join('')
+      : (q ? `<div class="empty-state">Καμία ολοκληρωμένη δεν ταιριάζει με την αναζήτηση.</div>` : `<div class="empty-state">Καμία ολοκληρωμένη αλλαγή ακόμη.</div>`);
+
+    const deletedHtml = deleted.length
+      ? deleted.map(e => renderEntry(e, state.currentProject)).join('')
+      : (q ? `<div class="empty-state">Καμία διαγραμμένη δεν ταιριάζει με την αναζήτηση.</div>` : `<div class="empty-state">Καμία διαγραμμένη αλλαγή.</div>`);
+
+    mainHtml = `
+      <div class="project-title">${esc(proj.name)}</div>
+      <div class="project-sub">${pending.length} εκκρεμότητ${pending.length===1?'α':'ες'}${partialCount?` · ${partialCount} μερικ${partialCount===1?'ή':'ές'}`:''} · ${done.length} ολοκληρωμέν${done.length===1?'η':'ες'}${deleted.length ? ` · ${deleted.length} διαγραμμέν${deleted.length===1?'η':'ες'}` : ''}</div>
+
+      <div class="field" style="max-width:340px; margin-bottom:20px;">
+        <label for="in-view-search">Αναζήτηση σε αυτό το έργο</label>
+        <input type="text" id="in-view-search" placeholder="όνομα, ΑΦΜ ή αριθμός παροχής" value="${esc(state.viewSearchQuery)}" autocomplete="off">
+      </div>
+
+      <section class="list-section">
+        <div class="section-head">
+          <h2>Εκκρεμότητες</h2>
+          <span class="muted">ο αριθμός #Ν δείχνει πάντα τη σειρά προτεραιότητας</span>
+          <select id="in-view-sort" style="margin-left:auto;">
+            <option value="priority" ${state.viewSort==='priority'?'selected':''}>Ταξινόμηση: Προτεραιότητα</option>
+            <option value="alpha" ${state.viewSort==='alpha'?'selected':''}>Ταξινόμηση: Αλφαβητικά (Α-Ω)</option>
+            <option value="newest" ${state.viewSort==='newest'?'selected':''}>Ταξινόμηση: Νεότερες πρώτα</option>
+          </select>
+          <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="pending">⬇ Excel</button>
+          <button class="btn btn-sm btn-quiet" data-action="print-view">🖨 Λήψη για εκτύπωση</button>
+        </div>
+        ${pendingHtml}
+      </section>
+
+      <details class="completed-wrap" style="margin-bottom:10px;" ${q && done.length ? 'open' : ''}>
+        <summary>Ολοκληρωμένες (${done.length}) <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="done" style="margin-left:10px;">⬇ Excel</button></summary>
+        <div class="completed-body">${doneHtml}</div>
+      </details>
+
+      <details class="completed-wrap" ${q && deleted.length ? 'open' : ''}>
+        <summary>Διαγραμμένες (${deleted.length}) <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="deleted" style="margin-left:10px;">⬇ Excel</button></summary>
+        <div class="completed-body">${deletedHtml}</div>
+      </details>
+    `;
+  }
+
+  return `
+    <div class="view-app">
+      <div class="tabs">${tabsHtml}</div>
+      <div class="main">${mainHtml}</div>
+    </div>`;
+}
+
+/* ---------- master render ---------- */
+
+function render(){
+  const root = document.getElementById('root');
+
+  root.innerHTML = `
+    <div class="shell">
+      <div class="brand-ribbon"></div>
+      <div class="topnav">
+        <h1>Αλλαγές παροχών<span class="wordmark-sub">Μινώα Ενεργειακή</span></h1>
+        <button class="navbtn ${state.page==='home'?'active':''}" data-action="goto" data-page="home">Καταχώρηση</button>
+        <button class="navbtn ${state.page==='view'?'active':''}" data-action="goto" data-page="view">Προβολή αλλαγών</button>
+        <button class="navbtn ${state.page==='search'?'active':''}" data-action="goto" data-page="search">Αναζήτηση</button>
+        <button class="navbtn ${state.page==='contacts'?'active':''}" data-action="goto" data-page="contacts">Κατάλογος επικοινωνίας</button>
+        <button class="navbtn ${state.page==='stats'?'active':''}" data-action="goto" data-page="stats">Στατιστικά</button>
+        <button class="navbtn ${state.page==='account'?'active':''}" data-action="goto" data-page="account">Αλλαγή κωδικού</button>
+        <span class="user-chip">${esc(CURRENT_USER.name || CURRENT_USER.email)}</span>
+        <form class="logout-form" method="POST" action="/api/logout">
+          <button type="submit" class="navbtn">Αποσύνδεση</button>
+        </form>
+      </div>
+      <div class="page">
+        ${state.page === 'home' ? renderHome() : state.page === 'view' ? renderView() : state.page === 'search' ? renderSearch() : state.page === 'contacts' ? renderContacts() : state.page === 'account' ? renderAccount() : renderStats()}
+      </div>
+    </div>
+    ${state.toast ? `<div class="toast">${esc(state.toast)}</div>` : ''}
+  `;
+
+  if(state.editingPartialId){
+    const ta = document.getElementById('partial-note-input');
+    if(ta){ ta.focus(); const v = ta.value; ta.value=''; ta.value=v; }
+  }
+  if(state.deletingId){
+    const dta = document.getElementById('delete-reason-input');
+    if(dta){ dta.focus(); }
+  }
+}
+
+document.addEventListener('click', async (ev)=>{
+  const btn = ev.target.closest('[data-action]');
+  if(btn){
+    const action = btn.dataset.action;
+    const id = btn.dataset.id;
+    const pid = btn.dataset.project;
+    if(action==='export-xlsx'){ ev.preventDefault(); exportXlsx(btn.dataset.target); return; }
+    if(action==='download-template'){ downloadImportTemplate(); return; }
+    if(action==='print-view'){ printCurrentPending(); return; }
+    if(action==='download-receipt'){ downloadReceipt(id, pid); return; }
+    if(action==='trigger-import'){ document.getElementById('import-file')?.click(); return; }
+    if(action==='goto') goToPage(btn.dataset.page);
+    else if(action==='switch') switchProject(id);
+    else if(action==='done') markDone(id, pid);
+    else if(action==='partial-open'){
+      state.editingPartialId = id; state.editingPartialProjectId = pid;
+      state.deletingId = null; state.deletingProjectId = null;
+      state.editingEntryId = null; state.editingEntryProjectId = null;
+      render();
+    }
+    else if(action==='partial-cancel'){ state.editingPartialId = null; state.editingPartialProjectId = null; render(); }
+    else if(action==='partial-save'){
+      const ta = document.getElementById('partial-note-input');
+      const note = ta ? ta.value : '';
+      if(!note.trim()){ showToast('Γράψε τι ακριβώς έγινε μερικώς.'); return; }
+      markPartial(id, note, pid);
+    }
+    else if(action==='revert') revertToPending(id, pid);
+    else if(action==='revert-deleted') revertDeleted(id, pid);
+    else if(action==='delete-ask'){
+      state.deletingId = id; state.deletingProjectId = pid;
+      state.editingPartialId = null; state.editingPartialProjectId = null;
+      state.editingEntryId = null; state.editingEntryProjectId = null;
+      render();
+    }
+    else if(action==='delete-cancel'){ state.deletingId = null; state.deletingProjectId = null; render(); }
+    else if(action==='delete-confirm'){
+      const ta = document.getElementById('delete-reason-input');
+      const reason = ta ? ta.value : '';
+      if(!reason.trim()){ showToast('Γράψε την αιτιολογία διαγραφής.'); return; }
+      deleteEntry(id, reason, pid);
+    }
+    else if(action==='edit-open'){
+      state.editingEntryId = id; state.editingEntryProjectId = pid;
+      state.editingPartialId = null; state.editingPartialProjectId = null;
+      state.deletingId = null; state.deletingProjectId = null;
+      render();
+    }
+    else if(action==='edit-cancel'){ state.editingEntryId = null; state.editingEntryProjectId = null; render(); }
+    else if(action==='edit-save'){
+      const lastName = document.getElementById('edit-lastname').value;
+      const firstName = document.getElementById('edit-firstname').value;
+      const afm = document.getElementById('edit-afm').value.trim();
+      const supplyNumber = document.getElementById('edit-supply').value.trim();
+      const contactInfo = document.getElementById('edit-contact').value.trim();
+      const contactPersonName = document.getElementById('edit-contact-name').value.trim();
+      const description = document.getElementById('edit-desc').value;
+      if(!lastName.trim() || !firstName.trim()){ showToast('Συμπλήρωσε επώνυμο και όνομα.'); return; }
+      if(!supplyNumber){ showToast('Συμπλήρωσε τον αριθμό παροχής.'); return; }
+      if(afm && !/^\d{9}$/.test(afm)){ showToast('Το ΑΦΜ πρέπει να έχει ακριβώς 9 ψηφία.'); return; }
+      if(supplyNumber && !/^\d{1,11}$/.test(supplyNumber)){ showToast('Ο αριθμός παροχής πρέπει να έχει έως 11 ψηφία.'); return; }
+      if(!contactInfo){ showToast('Συμπλήρωσε στοιχεία επικοινωνίας.'); return; }
+      if(!description.trim()){ showToast('Συμπλήρωσε περιγραφή αλλαγής.'); return; }
+      updateEntryFields(id, pid, {
+        lastName: lastName.trim(), firstName: firstName.trim(), afm, supplyNumber,
+        contactInfo, contactPersonName, description: description.trim()
+      });
+    }
+    else if(action==='open-in-project'){
+      state.currentProject = id;
+      state.page = 'view';
+      loadEntries(id);
+      render();
+    }
+    else if(action==='pick-suggestion') pickSuggestion(id);
+    return;
+  }
+  const suggestionsBox = document.getElementById('contact-suggestions');
+  if(suggestionsBox && !suggestionsBox.contains(ev.target) && ev.target.id !== 'in-lastname' && ev.target.id !== 'in-firstname'){
+    suggestionsBox.style.display = 'none';
+  }
+  if(ev.target.id === 'btn-add'){
+    if(state.submitting) return;
+    const projectId = document.getElementById('in-project').value;
+    const supplyNumber = document.getElementById('in-supply').value;
+    const date = document.getElementById('in-date').value || todayISO();
+    const lastName = document.getElementById('in-lastname').value;
+    const firstName = document.getElementById('in-firstname').value;
+    const afm = document.getElementById('in-afm').value.trim();
+    const contact = document.getElementById('in-contact').value;
+    const contactName = document.getElementById('in-contact-name').value;
+    const desc = document.getElementById('in-desc').value;
+    if(!supplyNumber.trim()){
+      showToast('Συμπλήρωσε τον αριθμό παροχής.');
+      return;
+    }
+    if(!lastName.trim() || !firstName.trim()){
+      showToast('Συμπλήρωσε επώνυμο και όνομα.');
+      return;
+    }
+    if(afm && !/^\d{9}$/.test(afm)){
+      showToast('Το ΑΦΜ πρέπει να έχει ακριβώς 9 ψηφία.');
+      return;
+    }
+    if(!contact.trim()){
+      showToast('Συμπλήρωσε στοιχεία επικοινωνίας.');
+      return;
+    }
+    if(!desc.trim()){
+      showToast('Συμπλήρωσε τι αλλαγή θέλει.');
+      return;
+    }
+    state.homeSelectedProject = projectId;
+    const proj = PROJECTS.find(p=>p.id===projectId);
+    state.submitting = true;
+    setTimeout(()=>{
+      const s = document.getElementById('in-supply'); if(s) s.value='';
+      const sh = document.getElementById('supply-hint'); if(sh) sh.style.display='none';
+      const ln = document.getElementById('in-lastname'); if(ln) ln.value='';
+      const fn = document.getElementById('in-firstname'); if(fn) fn.value='';
+      const a = document.getElementById('in-afm'); if(a) a.value='';
+      const ah = document.getElementById('afm-hint'); if(ah) ah.style.display='none';
+      const c = document.getElementById('in-contact'); if(c) c.value='';
+      const cn = document.getElementById('in-contact-name'); if(cn) cn.value='';
+      const d = document.getElementById('in-desc'); if(d) d.value='';
+      const dt = document.getElementById('in-date'); if(dt) dt.value = todayISO();
+      const sug = document.getElementById('contact-suggestions'); if(sug){ sug.style.display='none'; sug.innerHTML=''; }
+      const dw = document.getElementById('dup-warning'); if(dw) dw.style.display='none';
+    }, 0);
+    const entrySaved = await addEntry(projectId, date, lastName, firstName, afm, supplyNumber, contact, contactName, desc);
+    const contactSaved = await addOrUpdateContact(lastName, firstName, afm, contact, contactName, projectId);
+    state.submitting = false;
+    if(entrySaved && contactSaved){
+      showToast(`Καταχωρήθηκε στο ${proj.name}`);
+    } else if(!entrySaved){
+      showToast('Προσοχή: η αλλαγή φαίνεται στην οθόνη αλλά η αποθήκευση απέτυχε — μην κλείσεις το παράθυρο, δοκίμασε ξανά.');
+    } else {
+      showToast('Η αλλαγή καταχωρήθηκε, αλλά τα στοιχεία επικοινωνίας δεν αποθηκεύτηκαν στον κατάλογο — δοκίμασε ξανά.');
+    }
+  }
+  if(ev.target.id === 'btn-change-password'){
+    const currentEl = document.getElementById('pw-current');
+    const newEl = document.getElementById('pw-new');
+    const confirmEl = document.getElementById('pw-confirm');
+    const currentPassword = currentEl ? currentEl.value : '';
+    const newPassword = newEl ? newEl.value : '';
+    const confirmPassword = confirmEl ? confirmEl.value : '';
+    if(!currentPassword || !newPassword){
+      showToast('Συμπλήρωσε τον τρέχοντα και τον νέο κωδικό.');
+      return;
+    }
+    if(newPassword !== confirmPassword){
+      showToast('Ο νέος κωδικός και η επιβεβαίωση δεν ταιριάζουν.');
+      return;
+    }
+    try{
+      const res = await fetch('/api/account/change-password', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({currentPassword, newPassword})
+      });
+      if(res.ok){
+        if(currentEl) currentEl.value = '';
+        if(newEl) newEl.value = '';
+        if(confirmEl) confirmEl.value = '';
+        showToast('Ο κωδικός άλλαξε.');
+      } else {
+        const data = await res.json().catch(()=>({}));
+        showToast(data.error || 'Η αλλαγή κωδικού απέτυχε.');
+      }
+    }catch(err){
+      showToast('Η αλλαγή κωδικού απέτυχε — δοκίμασε ξανά.');
+    }
+  }
+});
+
+document.addEventListener('input', (ev)=>{
+  if(ev.target.id === 'in-afm'){
+    const raw = ev.target.value;
+    const digitsOnly = raw.replace(/\D/g, '');
+    const overflow = digitsOnly.length > 9 || /\D/.test(raw);
+    const truncated = digitsOnly.slice(0, 9);
+    if(truncated !== raw) ev.target.value = truncated;
+    const hint = document.getElementById('afm-hint');
+    if(hint) hint.style.display = overflow ? 'block' : 'none';
+  }
+  if(ev.target.id === 'in-supply'){
+    const raw = ev.target.value;
+    const digitsOnly = raw.replace(/\D/g, '');
+    const overflow = digitsOnly.length > 11 || /\D/.test(raw);
+    const truncated = digitsOnly.slice(0, 11);
+    if(truncated !== raw) ev.target.value = truncated;
+    const hint = document.getElementById('supply-hint');
+    if(hint) hint.style.display = overflow ? 'block' : 'none';
+  }
+  if(ev.target.id === 'edit-afm'){
+    ev.target.value = ev.target.value.replace(/\D/g, '').slice(0, 9);
+  }
+  if(ev.target.id === 'edit-supply'){
+    ev.target.value = ev.target.value.replace(/\D/g, '').slice(0, 11);
+  }
+  if(ev.target.id === 'in-search'){
+    state.searchQuery = ev.target.value;
+    render();
+    const el = document.getElementById('in-search');
+    if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  }
+  if(ev.target.id === 'in-contacts-search'){
+    state.contactsSearchQuery = ev.target.value;
+    render();
+    const el = document.getElementById('in-contacts-search');
+    if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  }
+  if(ev.target.id === 'in-lastname' || ev.target.id === 'in-firstname'){
+    updateSuggestions();
+    updateDupWarning();
+  }
+  if(ev.target.id === 'in-afm'){
+    updateSuggestions();
+    updateDupWarning();
+  }
+});
+
+document.addEventListener('change', (ev)=>{
+  if(ev.target.id === 'in-contacts-project'){
+    state.contactsProjectFilter = ev.target.value;
+    render();
+  }
+  if(ev.target.id === 'in-contacts-type'){
+    state.contactsTypeFilter = ev.target.value;
+    render();
+  }
+  if(ev.target.id === 'in-view-sort'){
+    state.viewSort = ev.target.value;
+    render();
+  }
+  if(ev.target.id === 'in-project'){
+    updateDupWarning();
+  }
+  if(ev.target.id === 'import-file'){
+    const file = ev.target.files && ev.target.files[0];
+    if(file){
+      handleImportFile(file);
+      ev.target.value = '';
+    }
+  }
+});
+
+/* ---------- home form helpers: autocomplete + duplicate check ---------- */
+
+function updateSuggestions(){
+  const box = document.getElementById('contact-suggestions');
+  if(!box) return;
+  const lastEl = document.getElementById('in-lastname');
+  const firstEl = document.getElementById('in-firstname');
+  const afmEl = document.getElementById('in-afm');
+  if(!lastEl || !firstEl || !afmEl) return;
+  const last = lastEl.value.trim().toLowerCase();
+  const first = firstEl.value.trim().toLowerCase();
+  const afm = afmEl.value.trim();
+  const query = `${last} ${first}`.trim();
+
+  if((query.length < 2 && afm.length < 3) || state.contacts === undefined){
+    box.style.display = 'none';
+    box.innerHTML = '';
+    return;
+  }
+
+  const matches = state.contacts.filter(r => {
+    const rLast = (r.lastName !== undefined ? r.lastName : nameParts(r).last).toLowerCase();
+    const rFull = fullName(r).toLowerCase();
+    const afmHit = afm.length >= 3 && r.afm && r.afm.startsWith(afm);
+    const nameHit = query.length >= 2 && (rLast.startsWith(last) || rFull.includes(query));
+    return afmHit || nameHit;
+  }).slice(0, 6);
+
+  if(!matches.length){
+    box.style.display = 'none';
+    box.innerHTML = '';
+    return;
+  }
+
+  box.innerHTML = matches.map(r => {
+    const {last: rl, first: rf} = nameParts(r);
+    const latestContact = r.contacts && r.contacts.length ? r.contacts[r.contacts.length-1].value : '';
+    return `<div class="suggestion-item" data-action="pick-suggestion" data-id="${r.id}">
+      <div class="sug-name">${esc(rl)} ${esc(rf)}</div>
+      <div class="sug-meta">${r.afm ? 'ΑΦΜ ' + esc(r.afm) : 'χωρίς ΑΦΜ'}${latestContact ? ' · ' + esc(latestContact) : ''}</div>
+    </div>`;
+  }).join('');
+  box.style.display = 'block';
+}
+
+function pickSuggestion(contactId){
+  const r = (state.contacts||[]).find(c => c.id === contactId);
+  if(!r) return;
+  const {last, first} = nameParts(r);
+  const lastEl = document.getElementById('in-lastname');
+  const firstEl = document.getElementById('in-firstname');
+  const afmEl = document.getElementById('in-afm');
+  const contactEl = document.getElementById('in-contact');
+  if(lastEl) lastEl.value = last;
+  if(firstEl) firstEl.value = first;
+  if(afmEl) afmEl.value = r.afm || '';
+  if(contactEl && r.contacts && r.contacts.length){
+    contactEl.value = r.contacts[r.contacts.length-1].value;
+  }
+  const box = document.getElementById('contact-suggestions');
+  if(box){ box.style.display = 'none'; box.innerHTML = ''; }
+  updateDupWarning();
+}
+
+function updateDupWarning(){
+  const box = document.getElementById('dup-warning');
+  if(!box) return;
+  const projectEl = document.getElementById('in-project');
+  const lastEl = document.getElementById('in-lastname');
+  const firstEl = document.getElementById('in-firstname');
+  const afmEl = document.getElementById('in-afm');
+  if(!projectEl || !lastEl || !firstEl || !afmEl) return;
+  const projectId = projectEl.value;
+  const last = lastEl.value.trim().toLowerCase();
+  const first = firstEl.value.trim().toLowerCase();
+  const afm = afmEl.value.trim();
+  const list = state.entries[projectId] || [];
+
+  if(!last && !afm){
+    box.style.display = 'none';
+    return;
+  }
+
+  const matches = list.filter(e => {
+    if(e.status !== 'pending' && e.status !== 'partial') return false;
+    if(afm && e.afm && e.afm === afm) return true;
+    const {last: el2, first: ef2} = nameParts(e);
+    return last && el2.toLowerCase() === last && (!first || ef2.toLowerCase() === first);
+  });
+
+  if(matches.length){
+    const proj = PROJECTS.find(p=>p.id===projectId);
+    box.textContent = `Προσοχή: αυτό το άτομο έχει ήδη ${matches.length} εκκρεμότητ${matches.length===1?'α':'ες'} στο ${proj ? proj.name : 'έργο'}.`;
+    box.style.display = 'block';
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+render();
+// Preload every project's entries up front, so a submission never races
+// with a first-time fetch for that project (which could otherwise overwrite
+// data saved moments earlier).
+PROJECTS.forEach(p => loadEntries(p.id));
+// Preload the contact directory too, so autocomplete suggestions on the
+// registration form work immediately.
+loadContacts();
+
+// Background sync: with several people using this at once, poll every
+// 20s for changes made by others. Skipped while a tab is hidden, while
+// the user has an edit box open, and while on the "Καταχώρηση" (new
+// request) page — every field there is an uncontrolled input only read
+// at submit time, so a re-render mid-typing would silently erase it.
+setInterval(()=>{
+  if(document.hidden) return;
+  if(state.page === 'home') return;
+  if(state.editingEntryId || state.editingPartialId || state.deletingId) return;
+  Object.keys(state.entries).forEach(pid => {
+    if(state.entries[pid] !== undefined) refreshEntries(pid);
+  });
+  if(state.contacts !== undefined) refreshContacts();
+}, 20000);
+</script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+}
+
+model Entry {
+  id                String    @id
+  projectId         String
+  date              DateTime  @db.Date
+  lastName          String
+  firstName         String
+  afm               String?
+  supplyNumber      String?
+  contactInfo       String?
+  contactPersonName String?
+  description       String
+  status            String    @default("pending")
+  partialNotes      Json      @default("[]")
+  completedDate     DateTime? @db.Date
+  deletedDate       DateTime? @db.Date
+  deleteReason      String?
+  createdByEmail    String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+}
+
+model Contact {
+  id             String   @id
+  lastName       String
+  firstName      String
+  afm            String?
+  contacts       Json     @default("[]")
+  projectIds     String[] @default([])
+  createdByEmail String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
