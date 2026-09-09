@@ -26,6 +26,14 @@
     --done-bg:#E6F7ED;
     --done-line:#BCE9CE;
 
+    --teal:#0E9488;
+    --teal-bg:#E1F7F4;
+    --teal-line:#A6E6DE;
+
+    --mustard:#B7950B;
+    --mustard-bg:#FBF3D9;
+    --mustard-line:#EBD888;
+
     --danger:#D64545;
     --danger-bg:#FBEAEA;
     --radius:10px;
@@ -388,9 +396,9 @@
 const PROJECTS = [
   {id:'a-minoa-energiaki', letter:'Α', name:'Α ΜΙΝΩΑ ΕΝΕΡΓΕΙΑΚΗ', color:'blue'},
   {id:'b-minoa-energiaki', letter:'Β', name:'Β ΜΙΝΩΑ ΕΝΕΡΓΕΙΑΚΗ', color:'done'},
-  {id:'a-minoa-aroania',   letter:'Α', name:'Α ΜΙΝΩΑ ΑΡΟΑΝΙΑ',   color:'blue'},
-  {id:'b-minoa-aroania',   letter:'Β', name:'Β ΜΙΝΩΑ ΑΡΟΑΝΙΑ',   color:'done'},
-  {id:'g-minoa-aroania',   letter:'Γ', name:'Γ ΜΙΝΩΑ ΑΡΟΑΝΙΑ',   color:'blue'},
+  {id:'a-minoa-aroania',   letter:'Α', name:'Α ΜΙΝΩΑ ΑΡΟΑΝΙΑ',   color:'partial'},
+  {id:'b-minoa-aroania',   letter:'Β', name:'Β ΜΙΝΩΑ ΑΡΟΑΝΙΑ',   color:'teal'},
+  {id:'g-minoa-aroania',   letter:'Γ', name:'Γ ΜΙΝΩΑ ΑΡΟΑΝΙΑ',   color:'mustard'},
 ];
 
 const ALL_ID = 'all-projects';
@@ -402,6 +410,8 @@ const TAB_COLORWAYS = {
   blue:    {c:'var(--accent)', soft:'var(--accent-soft)', dark:'var(--accent-dark)'},
   done:    {c:'var(--done)',   soft:'var(--done-bg)',      dark:'var(--done)'},
   partial: {c:'var(--partial)',soft:'var(--partial-bg)',   dark:'var(--partial)'},
+  teal:    {c:'var(--teal)',   soft:'var(--teal-bg)',      dark:'var(--teal)'},
+  mustard: {c:'var(--mustard)',soft:'var(--mustard-bg)',   dark:'var(--mustard)'},
   all:     {c:'var(--ink)',    soft:'var(--line)',         dark:'var(--ink)'},
 };
 
