@@ -436,6 +436,8 @@ const state = {
   contactsTypeFilter: 'all',
   viewSort: 'priority',
   viewSearchQuery: '',
+  viewDateFrom: '',
+  viewDateTo: '',
 };
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
@@ -1706,7 +1708,28 @@ function renderHome(){
 
 /* ---------- render: VIEW page ---------- */
 
+function renderViewFilters(searchLabel){
+  return `
+    <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:20px;">
+      <div class="field" style="max-width:340px; margin-bottom:0; flex:1;">
+        <label for="in-view-search">${searchLabel}</label>
+        <input type="text" id="in-view-search" placeholder="όνομα, ΑΦΜ ή αριθμός παροχής" value="${esc(state.viewSearchQuery)}" autocomplete="off">
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label for="in-view-date-from">Από ημερομηνία</label>
+        <input type="date" id="in-view-date-from" value="${esc(state.viewDateFrom)}">
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label for="in-view-date-to">Έως ημερομηνία</label>
+        <input type="date" id="in-view-date-to" value="${esc(state.viewDateTo)}">
+      </div>
+      ${(state.viewDateFrom || state.viewDateTo) ? `<button class="btn btn-sm btn-quiet" data-action="clear-view-dates" style="margin-bottom:1px;">Καθαρισμός ημερομηνιών</button>` : ''}
+    </div>`;
+}
+
 function entryMatchesQuery(e, q){
+  if(state.viewDateFrom && e.date < state.viewDateFrom) return false;
+  if(state.viewDateTo && e.date > state.viewDateTo) return false;
   if(!q) return true;
   return fullName(e).toLowerCase().includes(q)
     || (e.afm && e.afm.includes(q))
@@ -1756,6 +1779,7 @@ function renderView(){
       mainHtml = `<div class="empty-state">Φόρτωση…</div>`;
     } else {
       const q = state.viewSearchQuery.trim().toLowerCase();
+      const hasFilter = !!q || !!state.viewDateFrom || !!state.viewDateTo;
 
       let combinedPending = [];
       PROJECTS.forEach(p => {
@@ -1784,27 +1808,24 @@ function renderView(){
 
       const pendingHtml = displayList.length
         ? displayList.map(({e, projectId, priority}) => renderEntry(e, projectId, priority, {showProject:true})).join('')
-        : (q ? `<div class="empty-state">Καμία εκκρεμότητα δεν ταιριάζει με "${esc(state.viewSearchQuery.trim())}".</div>`
+        : (hasFilter ? `<div class="empty-state">Καμία εκκρεμότητα δεν ταιριάζει με τα φίλτρα${q ? ` ("${esc(state.viewSearchQuery.trim())}")` : ''}.</div>`
              : `<div class="empty-state">Δεν υπάρχουν εκκρεμότητες σε κανένα έργο.</div>`);
 
       const partialCount = combinedPending.filter(({e})=>e.status==='partial').length;
 
       const doneHtml = combinedDone.length
         ? combinedDone.map(({e, projectId}) => renderEntry(e, projectId, null, {showProject:true})).join('')
-        : (q ? `<div class="empty-state">Καμία ολοκληρωμένη δεν ταιριάζει με την αναζήτηση.</div>` : `<div class="empty-state">Καμία ολοκληρωμένη αλλαγή ακόμη.</div>`);
+        : (hasFilter ? `<div class="empty-state">Καμία ολοκληρωμένη δεν ταιριάζει με τα φίλτρα.</div>` : `<div class="empty-state">Καμία ολοκληρωμένη αλλαγή ακόμη.</div>`);
 
       const deletedHtml = combinedDeleted.length
         ? combinedDeleted.map(({e, projectId}) => renderEntry(e, projectId, null, {showProject:true})).join('')
-        : (q ? `<div class="empty-state">Καμία διαγραμμένη δεν ταιριάζει με την αναζήτηση.</div>` : `<div class="empty-state">Καμία διαγραμμένη αλλαγή.</div>`);
+        : (hasFilter ? `<div class="empty-state">Καμία διαγραμμένη δεν ταιριάζει με τα φίλτρα.</div>` : `<div class="empty-state">Καμία διαγραμμένη αλλαγή.</div>`);
 
       mainHtml = `
         <div class="project-title">Όλα τα έργα</div>
         <div class="project-sub">${combinedPending.length} εκκρεμότητ${combinedPending.length===1?'α':'ες'}${partialCount?` · ${partialCount} μερικ${partialCount===1?'ή':'ές'}`:''} · ${combinedDone.length} ολοκληρωμέν${combinedDone.length===1?'η':'ες'}${combinedDeleted.length ? ` · ${combinedDeleted.length} διαγραμμέν${combinedDeleted.length===1?'η':'ες'}` : ''}</div>
 
-        <div class="field" style="max-width:340px; margin-bottom:20px;">
-          <label for="in-view-search">Αναζήτηση σε όλα τα έργα</label>
-          <input type="text" id="in-view-search" placeholder="όνομα, ΑΦΜ ή αριθμός παροχής" value="${esc(state.viewSearchQuery)}" autocomplete="off">
-        </div>
+        ${renderViewFilters('Αναζήτηση σε όλα τα έργα')}
 
         <section class="list-section">
           <div class="section-head">
@@ -1821,12 +1842,12 @@ function renderView(){
           ${pendingHtml}
         </section>
 
-        <details class="completed-wrap" style="margin-bottom:10px;" ${q && combinedDone.length ? 'open' : ''}>
+        <details class="completed-wrap" style="margin-bottom:10px;" ${hasFilter && combinedDone.length ? 'open' : ''}>
           <summary>Ολοκληρωμένες (${combinedDone.length}) <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="all-done" style="margin-left:10px;">⬇ Excel</button></summary>
           <div class="completed-body">${doneHtml}</div>
         </details>
 
-        <details class="completed-wrap" ${q && combinedDeleted.length ? 'open' : ''}>
+        <details class="completed-wrap" ${hasFilter && combinedDeleted.length ? 'open' : ''}>
           <summary>Διαγραμμένες (${combinedDeleted.length}) <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="all-deleted" style="margin-left:10px;">⬇ Excel</button></summary>
           <div class="completed-body">${deletedHtml}</div>
         </details>
@@ -1836,6 +1857,7 @@ function renderView(){
     mainHtml = `<div class="empty-state">Φόρτωση…</div>`;
   } else {
     const q = state.viewSearchQuery.trim().toLowerCase();
+    const hasFilter = !!q || !!state.viewDateFrom || !!state.viewDateTo;
 
     const pending = getPendingSorted(state.currentProject);
     const pendingWithPriority = pending.map((e,i) => ({e, priority: i+1})).filter(({e}) => entryMatchesQuery(e, q));
@@ -1852,27 +1874,24 @@ function renderView(){
 
     const pendingHtml = displayList.length
       ? displayList.map(({e, priority}) => renderEntry(e, state.currentProject, priority)).join('')
-      : (q ? `<div class="empty-state">Καμία εκκρεμότητα δεν ταιριάζει με "${esc(state.viewSearchQuery.trim())}".</div>`
+      : (hasFilter ? `<div class="empty-state">Καμία εκκρεμότητα δεν ταιριάζει με τα φίλτρα${q ? ` ("${esc(state.viewSearchQuery.trim())}")` : ''}.</div>`
            : `<div class="empty-state">Δεν υπάρχουν εκκρεμότητες για αυτό το έργο.<br>Πήγαινε στην "Καταχώρηση" για να προσθέσεις.</div>`);
 
     const partialCount = pending.filter(e=>e.status==='partial').length;
 
     const doneHtml = done.length
       ? done.map(e => renderEntry(e, state.currentProject)).join('')
-      : (q ? `<div class="empty-state">Καμία ολοκληρωμένη δεν ταιριάζει με την αναζήτηση.</div>` : `<div class="empty-state">Καμία ολοκληρωμένη αλλαγή ακόμη.</div>`);
+      : (hasFilter ? `<div class="empty-state">Καμία ολοκληρωμένη δεν ταιριάζει με τα φίλτρα.</div>` : `<div class="empty-state">Καμία ολοκληρωμένη αλλαγή ακόμη.</div>`);
 
     const deletedHtml = deleted.length
       ? deleted.map(e => renderEntry(e, state.currentProject)).join('')
-      : (q ? `<div class="empty-state">Καμία διαγραμμένη δεν ταιριάζει με την αναζήτηση.</div>` : `<div class="empty-state">Καμία διαγραμμένη αλλαγή.</div>`);
+      : (hasFilter ? `<div class="empty-state">Καμία διαγραμμένη δεν ταιριάζει με τα φίλτρα.</div>` : `<div class="empty-state">Καμία διαγραμμένη αλλαγή.</div>`);
 
     mainHtml = `
       <div class="project-title">${esc(proj.name)}</div>
       <div class="project-sub">${pending.length} εκκρεμότητ${pending.length===1?'α':'ες'}${partialCount?` · ${partialCount} μερικ${partialCount===1?'ή':'ές'}`:''} · ${done.length} ολοκληρωμέν${done.length===1?'η':'ες'}${deleted.length ? ` · ${deleted.length} διαγραμμέν${deleted.length===1?'η':'ες'}` : ''}</div>
 
-      <div class="field" style="max-width:340px; margin-bottom:20px;">
-        <label for="in-view-search">Αναζήτηση σε αυτό το έργο</label>
-        <input type="text" id="in-view-search" placeholder="όνομα, ΑΦΜ ή αριθμός παροχής" value="${esc(state.viewSearchQuery)}" autocomplete="off">
-      </div>
+      ${renderViewFilters('Αναζήτηση σε αυτό το έργο')}
 
       <section class="list-section">
         <div class="section-head">
@@ -1889,12 +1908,12 @@ function renderView(){
         ${pendingHtml}
       </section>
 
-      <details class="completed-wrap" style="margin-bottom:10px;" ${q && done.length ? 'open' : ''}>
+      <details class="completed-wrap" style="margin-bottom:10px;" ${hasFilter && done.length ? 'open' : ''}>
         <summary>Ολοκληρωμένες (${done.length}) <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="done" style="margin-left:10px;">⬇ Excel</button></summary>
         <div class="completed-body">${doneHtml}</div>
       </details>
 
-      <details class="completed-wrap" ${q && deleted.length ? 'open' : ''}>
+      <details class="completed-wrap" ${hasFilter && deleted.length ? 'open' : ''}>
         <summary>Διαγραμμένες (${deleted.length}) <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="deleted" style="margin-left:10px;">⬇ Excel</button></summary>
         <div class="completed-body">${deletedHtml}</div>
       </details>
@@ -2021,6 +2040,11 @@ document.addEventListener('click', async (ev)=>{
       render();
     }
     else if(action==='pick-suggestion') pickSuggestion(id);
+    else if(action==='clear-view-dates'){
+      state.viewDateFrom = '';
+      state.viewDateTo = '';
+      render();
+    }
     return;
   }
   const suggestionsBox = document.getElementById('contact-suggestions');
@@ -2180,6 +2204,14 @@ document.addEventListener('change', (ev)=>{
   }
   if(ev.target.id === 'in-view-sort'){
     state.viewSort = ev.target.value;
+    render();
+  }
+  if(ev.target.id === 'in-view-date-from'){
+    state.viewDateFrom = ev.target.value;
+    render();
+  }
+  if(ev.target.id === 'in-view-date-to'){
+    state.viewDateTo = ev.target.value;
     render();
   }
   if(ev.target.id === 'in-project'){
