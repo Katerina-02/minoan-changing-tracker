@@ -8,11 +8,21 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const projectId = request.nextUrl.searchParams.get("projectId");
+  const type = request.nextUrl.searchParams.get("type");
+
+  if (type === "membership") {
+    const rows = await db.entry.findMany({
+      where: { type: "membership" },
+      orderBy: { date: "asc" },
+    });
+    return NextResponse.json(rows, { headers: { "Cache-Control": "no-store" } });
+  }
+
   if (!projectId) {
     return NextResponse.json({ error: "projectId is required" }, { status: 400 });
   }
   const rows = await db.entry.findMany({
-    where: { projectId },
+    where: { projectId, type: "change" },
     orderBy: { date: "asc" },
   });
   return NextResponse.json(rows, { headers: { "Cache-Control": "no-store" } });
@@ -21,18 +31,23 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const session = await getSession();
   const body = await request.json();
+  const type = body.type === "membership" ? "membership" : "change";
 
-  const required = ["id", "projectId", "date", "lastName", "firstName", "supplyNumber", "description"];
+  const required = ["id", "date", "lastName", "firstName", "supplyNumber", "description"];
   for (const field of required) {
     if (!body[field]) {
       return NextResponse.json({ error: `${field} is required` }, { status: 400 });
     }
   }
+  if (type === "change" && !body.projectId) {
+    return NextResponse.json({ error: "projectId is required" }, { status: 400 });
+  }
 
   const row = await db.entry.create({
     data: {
       id: body.id,
-      projectId: body.projectId,
+      type,
+      projectId: type === "membership" ? null : body.projectId,
       date: new Date(body.date),
       lastName: body.lastName,
       firstName: body.firstName,

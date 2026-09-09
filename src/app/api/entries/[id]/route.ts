@@ -19,6 +19,8 @@ const PATCHABLE_FIELDS = [
   "deleteReason",
   "fileUrl",
   "fileName",
+  "projectId",
+  "membershipChecklist",
 ] as const;
 
 export async function PATCH(

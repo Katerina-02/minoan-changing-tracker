@@ -16,29 +16,32 @@ model User {
 }
 
 model Entry {
-  id                String    @id
-  projectId         String
-  date              DateTime  @db.Date
-  lastName          String
-  firstName         String
-  afm               String?
-  supplyNumber      String?
-  contactInfo       String?
-  contactPersonName String?
-  description       String
-  status            String    @default("pending")
-  partialNotes      Json      @default("[]")
-  completedDate     DateTime? @db.Date
-  deletedDate       DateTime? @db.Date
-  deleteReason      String?
-  fileUrl           String?
-  fileName          String?
-  createdByEmail    String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                  String    @id
+  type                String    @default("change") // "change" | "membership"
+  projectId           String?   // required for "change"; for "membership" this holds the enrolled project once completed, null until then
+  date                DateTime  @db.Date
+  lastName            String
+  firstName           String
+  afm                 String?
+  supplyNumber        String?
+  contactInfo         String?
+  contactPersonName   String?
+  description         String
+  status              String    @default("pending")
+  partialNotes        Json      @default("[]")
+  completedDate       DateTime? @db.Date
+  deletedDate         DateTime? @db.Date
+  deleteReason        String?
+  fileUrl             String?
+  fileName            String?
+  membershipChecklist Json?     @default("{}")
+  createdByEmail      String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([projectId])
   @@index([status])
+  @@index([type])
 }
 
 model Contact {

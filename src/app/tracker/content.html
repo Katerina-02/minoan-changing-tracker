@@ -245,6 +245,25 @@
   .delete-reason-box{display:flex; flex-direction:column; gap:6px; min-width:180px;}
   .delete-reason-box textarea{min-height:52px; border:1px solid var(--danger-bg); border-radius:6px; padding:7px 9px; font-family:inherit; font-size:12.5px; resize:vertical;}
   .delete-reason-box textarea:focus{outline:2px solid var(--danger); outline-offset:1px;}
+  .membership-complete-box{margin-top:10px; padding:14px; border:1px solid var(--done-line); background:var(--done-bg); border-radius:8px; display:flex; flex-direction:column; gap:12px; max-width:420px;}
+  .membership-complete-box .field{margin-bottom:0;}
+  .mc-checklist{display:flex; flex-direction:column; gap:6px; font-size:13px;}
+  .mc-checklist label{display:flex; align-items:center; gap:8px; font-weight:400;}
+  .form-type-toggle{display:flex; gap:8px; margin-bottom:22px;}
+  .form-type-btn{font-family:inherit; font-size:13px; font-weight:500; padding:8px 16px; border-radius:20px; border:1px solid var(--line); background:var(--surface); color:var(--ink-soft); cursor:pointer;}
+  .form-type-btn.active{background:var(--accent-soft); color:var(--accent-dark); border-color:var(--accent);}
+  .field select:disabled{background:var(--bg); color:var(--ink-soft); cursor:not-allowed;}
+  .navbtn-dropdown-wrap{position:relative;}
+  .navbtn-dropdown{
+    position:absolute; top:100%; left:0; z-index:30; margin-top:6px;
+    background:var(--surface); border:1px solid var(--line); border-radius:8px;
+    box-shadow:0 6px 18px rgba(0,0,0,.12); overflow:hidden; min-width:200px;
+  }
+  .navbtn-dropdown button{
+    display:block; width:100%; text-align:left; font-family:inherit; font-size:13px;
+    padding:10px 14px; border:none; background:var(--surface); color:var(--ink); cursor:pointer;
+  }
+  .navbtn-dropdown button:hover{background:var(--bg);}
   .entry.deleted{background:var(--danger-bg); border-left-color:var(--danger); opacity:.75;}
   .entry.deleted .entry-desc{text-decoration:line-through; text-decoration-color:var(--ink-soft);}
   .entry.editing{border-left-color:var(--accent); background:var(--accent-soft);}
@@ -405,6 +424,10 @@ const PROJECTS = [
 ];
 
 const ALL_ID = 'all-projects';
+// Membership ("νέο μέλος") requests aren't tied to a project. They're stored
+// under this pseudo-project key in state.entries so all the existing
+// per-project load/save/delete/edit machinery works for them unchanged.
+const MEMBERSHIP_BUCKET = 'membership-requests';
 
 // Filled in server-side (see src/app/tracker/route.ts) with the logged-in user's name/email.
 const CURRENT_USER = {"name":"","email":""};
@@ -419,11 +442,14 @@ const TAB_COLORWAYS = {
 };
 
 const state = {
-  page: 'home',              // 'home' | 'view' | 'search' | 'contacts'
+  page: 'home',              // 'home' | 'view' | 'membershipView' | 'search' | 'contacts' | 'stats' | 'account'
+  homeFormType: 'change',    // 'change' | 'membership' — which form is showing on the Καταχώρηση page
   homeSelectedProject: PROJECTS[0].id,
   currentProject: PROJECTS[0].id,   // used by the view page; can also be ALL_ID
-  entries: {},                // projectId -> array | undefined (not loaded yet)
+  entries: {},                // projectId -> array | undefined (not loaded yet); membership requests live under MEMBERSHIP_BUCKET
   loading: {},
+  viewMenuOpen: false,        // "Προβολή αιτημάτων" dropdown (Αιτήματα αλλαγών / Αιτήματα νέων μελών)
+  membershipCompleteId: null, // id of the membership request currently showing the "Ολοκλήρωση ένταξης" panel
   contacts: undefined,        // array | undefined (not loaded yet)
   users: undefined,           // email -> name map | undefined (not loaded yet)
   contactsLoading: false,
@@ -657,7 +683,7 @@ function downloadReceipt(id, projectId){
   const list = state.entries[projectId] || [];
   const e = list.find(x => x.id === id);
   if(!e) return;
-  const proj = PROJECTS.find(p => p.id === projectId);
+  const proj = PROJECTS.find(p => p.id === (e.projectId || projectId));
   const refNumber = e.id.slice(-6).toUpperCase();
 
   const rowsHtml = [
@@ -824,6 +850,8 @@ function normDate(d){ return d ? String(d).slice(0,10) : null; }
 function rowToEntry(row){
   return {
     id: row.id,
+    type: row.type || 'change',
+    projectId: row.projectId || null,
     date: normDate(row.date),
     lastName: row.lastName || '',
     firstName: row.firstName || '',
@@ -839,6 +867,7 @@ function rowToEntry(row){
     deleteReason: row.deleteReason || null,
     fileUrl: row.fileUrl || null,
     fileName: row.fileName || null,
+    membershipChecklist: row.membershipChecklist || {},
     createdByEmail: row.createdByEmail || null,
   };
 }
@@ -867,13 +896,19 @@ async function patchEntry(id, fields){
   }
 }
 
+function entriesFetchUrl(projectId){
+  return projectId === MEMBERSHIP_BUCKET
+    ? '/api/entries?type=membership'
+    : '/api/entries?projectId=' + encodeURIComponent(projectId);
+}
+
 async function loadEntries(projectId){
   if(state.entries[projectId] !== undefined) return;
   state.loading[projectId] = true;
   render();
   let list = [];
   try{
-    const res = await fetch('/api/entries?projectId=' + encodeURIComponent(projectId), {cache: 'no-store'});
+    const res = await fetch(entriesFetchUrl(projectId), {cache: 'no-store'});
     if(!res.ok) throw new Error('load failed');
     const rows = await res.json();
     list = rows.map(rowToEntry);
@@ -890,7 +925,7 @@ async function loadEntries(projectId){
 // screen in sync without disturbing whatever they're doing.
 async function refreshEntries(projectId){
   try{
-    const res = await fetch('/api/entries?projectId=' + encodeURIComponent(projectId), {cache: 'no-store'});
+    const res = await fetch(entriesFetchUrl(projectId), {cache: 'no-store'});
     if(!res.ok) return;
     const rows = await res.json();
     state.entries[projectId] = rows.map(rowToEntry);
@@ -1006,27 +1041,29 @@ function currentEntries(){
   return state.entries[state.currentProject] || [];
 }
 
-async function addEntry(projectId, date, lastName, firstName, afm, supplyNumber, contactInfo, contactPersonName, description, fileUrl, fileName){
-  if(state.entries[projectId] === undefined){
-    await loadEntries(projectId);
+async function addEntry(bucketId, type, date, lastName, firstName, afm, supplyNumber, contactInfo, contactPersonName, description, fileUrl, fileName){
+  if(state.entries[bucketId] === undefined){
+    await loadEntries(bucketId);
   }
+  const isMembership = type === 'membership';
   const entry = {
-    id: uid(), date, lastName: lastName.trim(), firstName: firstName.trim(), afm: (afm||'').trim(),
+    id: uid(), type, projectId: isMembership ? null : bucketId,
+    date, lastName: lastName.trim(), firstName: firstName.trim(), afm: (afm||'').trim(),
     supplyNumber: supplyNumber.trim(), contactInfo: (contactInfo||'').trim(), contactPersonName: (contactPersonName||'').trim(),
     description: description.trim(),
     status: 'pending', partialNotes: [], completedDate: null,
-    fileUrl: fileUrl || null, fileName: fileName || null
+    fileUrl: fileUrl || null, fileName: fileName || null, membershipChecklist: {}
   };
-  const list = state.entries[projectId] || [];
+  const list = state.entries[bucketId] || [];
   list.push(entry);
-  state.entries[projectId] = list;
+  state.entries[bucketId] = list;
   render();
   try{
     const res = await fetch('/api/entries', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
-        id: entry.id, projectId, date, lastName: entry.lastName, firstName: entry.firstName,
+        id: entry.id, type, projectId: entry.projectId, date, lastName: entry.lastName, firstName: entry.firstName,
         afm: entry.afm, supplyNumber: entry.supplyNumber, contactInfo: entry.contactInfo,
         contactPersonName: entry.contactPersonName, description: entry.description,
         fileUrl: entry.fileUrl, fileName: entry.fileName
@@ -1072,6 +1109,22 @@ async function markDone(id, projectId){
   e.completedDate = todayISO();
   render();
   const ok = await patchEntry(id, {status:'done', completedDate: e.completedDate});
+  if(!ok) showToast('Η αποθήκευση απέτυχε — δοκίμασε ξανά.');
+}
+
+async function completeMembership(id, enrolledProjectId){
+  const list = state.entries[MEMBERSHIP_BUCKET] || [];
+  const e = list.find(x=>x.id===id);
+  if(!e) return;
+  e.status = 'done';
+  e.completedDate = todayISO();
+  e.projectId = enrolledProjectId;
+  e.membershipChecklist = {account:true, afm:true, application:true, agreement:true};
+  state.membershipCompleteId = null;
+  render();
+  const ok = await patchEntry(id, {
+    status:'done', completedDate: e.completedDate, projectId: enrolledProjectId, membershipChecklist: e.membershipChecklist
+  });
   if(!ok) showToast('Η αποθήκευση απέτυχε — δοκίμασε ξανά.');
 }
 
@@ -1165,6 +1218,7 @@ function switchProject(id){
   state.permanentDeleteProjectId = null;
   state.editingPartialId = null;
   state.editingPartialProjectId = null;
+  state.membershipCompleteId = null;
   state.viewSearchQuery = '';
   if(id === ALL_ID){
     PROJECTS.forEach(p => loadEntries(p.id));
@@ -1176,12 +1230,14 @@ function switchProject(id){
 
 function goToPage(page){
   state.page = page;
+  state.viewMenuOpen = false;
   state.deletingId = null;
   state.deletingProjectId = null;
   state.permanentDeleteId = null;
   state.permanentDeleteProjectId = null;
   state.editingPartialId = null;
   state.editingPartialProjectId = null;
+  state.membershipCompleteId = null;
   if(page === 'view'){
     if(state.currentProject === ALL_ID){
       PROJECTS.forEach(p => loadEntries(p.id));
@@ -1189,6 +1245,7 @@ function goToPage(page){
       loadEntries(state.currentProject);
     }
   }
+  if(page === 'membershipView') loadEntries(MEMBERSHIP_BUCKET);
   if(page === 'search') PROJECTS.forEach(p => loadEntries(p.id));
   if(page === 'contacts') loadContacts();
   if(page === 'stats'){ PROJECTS.forEach(p => loadEntries(p.id)); loadContacts(); }
@@ -1243,6 +1300,14 @@ function renderEntryActions(e, projectId){
       ${editButton}
       ${receiptButton}`;
   }
+  if(e.type === 'membership'){
+    return `
+      <button class="btn btn-sm btn-done" data-action="membership-complete-ask" data-id="${e.id}" data-project="${projectId}">✓ Ολοκληρώθηκε</button>
+      ${editButton}
+      ${receiptButton}
+      <button class="btn btn-sm btn-danger" data-action="delete-ask" data-id="${e.id}" data-project="${projectId}">Διαγραφή</button>
+    `;
+  }
   return `
     <button class="btn btn-sm btn-done" data-action="done" data-id="${e.id}" data-project="${projectId}">✓ Ολοκληρώθηκε</button>
     <button class="btn btn-sm btn-partial" data-action="partial-open" data-id="${e.id}" data-project="${projectId}">${e.status==='partial' ? '✎ Ενημέρωση' : '½ Μερική'}</button>
@@ -1278,7 +1343,12 @@ function renderEntry(e, projectId, priority, opts={}){
     extra = renderPartialNotes(e);
   }
   if(e.status === 'done'){
-    extra = `<div class="entry-completed-date">Ολοκληρώθηκε: ${toDisplayDate(e.completedDate)}</div>`;
+    if(e.type === 'membership'){
+      const enrolledProj = PROJECTS.find(p=>p.id===e.projectId);
+      extra = `<div class="entry-completed-date">Ολοκληρώθηκε: ${toDisplayDate(e.completedDate)}${enrolledProj ? ` — Έργο ένταξης: ${esc(enrolledProj.name)}` : ''}</div>`;
+    } else {
+      extra = `<div class="entry-completed-date">Ολοκληρώθηκε: ${toDisplayDate(e.completedDate)}</div>`;
+    }
   }
   if(e.status === 'deleted'){
     extra = `<div class="entry-deleted-note">Διαγράφηκε: ${toDisplayDate(e.deletedDate)}${e.deleteReason ? ` — ${esc(e.deleteReason)}` : ''}</div>`;
@@ -1291,6 +1361,30 @@ function renderEntry(e, projectId, priority, opts={}){
         <div style="display:flex; flex-direction:column; gap:6px;">
           <button class="btn btn-sm btn-partial" data-action="partial-save" data-id="${e.id}" data-project="${projectId}">Προσθήκη σχολίου</button>
           <button class="btn btn-sm btn-quiet" data-action="partial-cancel">Άκυρο</button>
+        </div>
+      </div>`;
+  }
+  let membershipCompleteBox = '';
+  if(e.type === 'membership' && state.membershipCompleteId === e.id){
+    const projectOptions = PROJECTS.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+    membershipCompleteBox = `
+      <div class="membership-complete-box">
+        <div class="field">
+          <label>Έργο ένταξης</label>
+          <select id="mc-project">
+            <option value="">Επίλεξε έργο…</option>
+            ${projectOptions}
+          </select>
+        </div>
+        <div class="mc-checklist">
+          <label><input type="checkbox" class="mc-check" id="mc-account"> Λογαριασμός</label>
+          <label><input type="checkbox" class="mc-check" id="mc-afm"> ΑΦΜ</label>
+          <label><input type="checkbox" class="mc-check" id="mc-application"> Αίτηση</label>
+          <label><input type="checkbox" class="mc-check" id="mc-agreement"> Συμφωνητικό</label>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-sm btn-done" id="mc-confirm" data-action="membership-complete-confirm" data-id="${e.id}" data-project="${projectId}" disabled>Ολοκλήρωση</button>
+          <button class="btn btn-sm btn-quiet" data-action="membership-complete-cancel">Άκυρο</button>
         </div>
       </div>`;
   }
@@ -1361,6 +1455,7 @@ function renderEntry(e, projectId, priority, opts={}){
         ${renderAttachmentLink(e)}
         ${extra}
         ${editBox}
+        ${membershipCompleteBox}
       </div>
       <div class="entry-actions">${renderEntryActions(e, projectId)}</div>
     </div>`;
@@ -1753,8 +1848,16 @@ function renderHome(){
     return `<option value="${p.id}" ${selected?'selected':''}>${esc(p.name)}</option>`;
   }).join('');
 
+  const isMembership = state.homeFormType === 'membership';
+
   return `
     <div class="home-wrap">
+      <div class="form-type-toggle">
+        <button class="form-type-btn ${!isMembership?'active':''}" data-action="set-home-form-type" data-type="change">Αίτημα αλλαγής</button>
+        <button class="form-type-btn ${isMembership?'active':''}" data-action="set-home-form-type" data-type="membership">Αίτημα νέου μέλους</button>
+      </div>
+
+      ${!isMembership ? `
       <details class="completed-wrap" style="margin-bottom:22px;">
         <summary>⇅ Μαζική εισαγωγή από Excel</summary>
         <div class="completed-body">
@@ -1768,10 +1871,10 @@ function renderHome(){
             <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;">
           </div>
         </div>
-      </details>
+      </details>` : ''}
 
-      <div class="kicker">Νέο αίτημα αλλαγής</div>
-      <h2>Καταχώρηση αιτήματος</h2>
+      <div class="kicker">${isMembership ? 'Νέο αίτημα ένταξης' : 'Νέο αίτημα αλλαγής'}</div>
+      <h2>${isMembership ? 'Καταχώρηση αιτήματος ένταξης' : 'Καταχώρηση αιτήματος'}</h2>
 
       <div class="reg-form">
         <div class="field">
@@ -1780,8 +1883,8 @@ function renderHome(){
           <div class="field-hint" id="supply-hint" style="display:none;">Ο αριθμός παροχής έχει έως 11 ψηφία — δεν μπαίνουν άλλα.</div>
         </div>
         <div class="field">
-          <label for="in-project">Έργο</label>
-          <select id="in-project">${optionsHtml}</select>
+          <label for="in-project">Έργο${isMembership ? ' <span style="font-weight:400; opacity:.75;">(αποφασίζεται κατά την ένταξη)</span>' : ''}</label>
+          <select id="in-project" ${isMembership ? 'disabled' : ''}>${optionsHtml}</select>
         </div>
         <div class="reg-row2">
           <div class="field">
@@ -1817,14 +1920,14 @@ function renderHome(){
           </div>
         </div>
         <div class="field">
-          <label for="in-desc">Περιγραφή αλλαγής</label>
-          <textarea id="in-desc" rows="3" placeholder="π.χ. Αύξηση ισχύος κατά 1kW"></textarea>
+          <label for="in-desc">${isMembership ? 'Σημειώσεις αιτήματος' : 'Περιγραφή αλλαγής'}</label>
+          <textarea id="in-desc" rows="3" placeholder="${isMembership ? 'π.χ. ενδιαφέρεται να μπει με τη νέα του παροχή' : 'π.χ. Αύξηση ισχύος κατά 1kW'}"></textarea>
         </div>
         <div class="field">
           <label for="in-attachment">📎 Επισύναψη αρχείου <span style="font-weight:400; opacity:.75;">(προαιρετικό — PDF ή εικόνα, έως 4MB)</span></label>
           <input type="file" id="in-attachment" accept="application/pdf,image/*">
         </div>
-        <button class="btn btn-primary btn-block" id="btn-add">+ Καταχώρηση αιτήματος</button>
+        <button class="btn btn-primary btn-block" id="btn-add">${isMembership ? '+ Καταχώρηση αιτήματος ένταξης' : '+ Καταχώρηση αιτήματος'}</button>
       </div>
     </div>`;
 }
@@ -1865,7 +1968,7 @@ function entryMatchesQuery(e, q){
 // otherwise the whole innerHTML rebuild would collapse it shut and hide
 // whatever the user is in the middle of.
 function hasActiveModalIn(list){
-  const activeIds = [state.deletingId, state.permanentDeleteId, state.editingEntryId, state.editingPartialId].filter(Boolean);
+  const activeIds = [state.deletingId, state.permanentDeleteId, state.editingEntryId, state.editingPartialId, state.membershipCompleteId].filter(Boolean);
   if(!activeIds.length) return false;
   return list.some(item => activeIds.includes((item.e || item).id));
 }
@@ -2061,6 +2164,77 @@ function renderView(){
     </div>`;
 }
 
+/* ---------- render: MEMBERSHIP REQUESTS view (no project tabs) ---------- */
+
+function renderMembershipView(){
+  const loaded = state.entries[MEMBERSHIP_BUCKET];
+  const loading = state.loading[MEMBERSHIP_BUCKET];
+
+  if(loading || loaded === undefined){
+    return `<div class="main" style="margin:24px;"><div class="empty-state">Φόρτωση…</div></div>`;
+  }
+
+  const q = state.viewSearchQuery.trim().toLowerCase();
+  const hasFilter = !!q || !!state.viewDateFrom || !!state.viewDateTo;
+
+  const pending = loaded.filter(e=>e.status==='pending').sort((a,b)=> a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  const pendingWithPriority = pending.map((e,i) => ({e, priority: i+1})).filter(({e}) => entryMatchesQuery(e, q));
+
+  let displayList = pendingWithPriority;
+  if(state.viewSort === 'alpha'){
+    displayList = [...pendingWithPriority].sort((a,b)=> fullName(a.e).localeCompare(fullName(b.e), 'el'));
+  } else if(state.viewSort === 'newest'){
+    displayList = [...pendingWithPriority].reverse();
+  }
+
+  const done = loaded.filter(e=>e.status==='done' && entryMatchesQuery(e, q)).sort((a,b)=> (b.completedDate||'').localeCompare(a.completedDate||''));
+  const deleted = loaded.filter(e=>e.status==='deleted' && entryMatchesQuery(e, q)).sort((a,b)=> (b.deletedDate||'').localeCompare(a.deletedDate||''));
+
+  const pendingHtml = displayList.length
+    ? displayList.map(({e, priority}) => renderEntry(e, MEMBERSHIP_BUCKET, priority)).join('')
+    : (hasFilter ? `<div class="empty-state">Κανένα αίτημα δεν ταιριάζει με τα φίλτρα.</div>`
+         : `<div class="empty-state">Δεν υπάρχουν εκκρεμή αιτήματα ένταξης.<br>Πήγαινε στην "Καταχώρηση" για να προσθέσεις.</div>`);
+
+  const doneHtml = done.length
+    ? done.map(e => renderEntry(e, MEMBERSHIP_BUCKET)).join('')
+    : (hasFilter ? `<div class="empty-state">Κανένα ολοκληρωμένο δεν ταιριάζει με τα φίλτρα.</div>` : `<div class="empty-state">Κανένα ολοκληρωμένο αίτημα ένταξης ακόμη.</div>`);
+
+  const deletedHtml = deleted.length
+    ? deleted.map(e => renderEntry(e, MEMBERSHIP_BUCKET)).join('')
+    : (hasFilter ? `<div class="empty-state">Καμία διαγραμμένη δεν ταιριάζει με τα φίλτρα.</div>` : `<div class="empty-state">Καμία διαγραμμένη αίτηση.</div>`);
+
+  return `
+    <div class="main" style="margin:24px;">
+      <div class="project-title">Αιτήματα νέων μελών</div>
+      <div class="project-sub">${pending.length} εκκρεμ${pending.length===1?'ό':'ή'} · ${done.length} ολοκληρωμέν${done.length===1?'ο':'α'}${deleted.length ? ` · ${deleted.length} διαγραμμέν${deleted.length===1?'ο':'α'}` : ''}</div>
+
+      ${renderViewFilters('Αναζήτηση σε αιτήματα νέων μελών')}
+
+      <section class="list-section">
+        <div class="section-head">
+          <h2>Εκκρεμή αιτήματα</h2>
+          <span class="muted">ο αριθμός #Ν δείχνει πάντα τη σειρά προτεραιότητας</span>
+          <select id="in-view-sort" style="margin-left:auto;">
+            <option value="priority" ${state.viewSort==='priority'?'selected':''}>Ταξινόμηση: Προτεραιότητα</option>
+            <option value="alpha" ${state.viewSort==='alpha'?'selected':''}>Ταξινόμηση: Αλφαβητικά (Α-Ω)</option>
+            <option value="newest" ${state.viewSort==='newest'?'selected':''}>Ταξινόμηση: Νεότερες πρώτα</option>
+          </select>
+        </div>
+        ${pendingHtml}
+      </section>
+
+      <details class="completed-wrap" style="margin-bottom:10px;" ${(hasFilter && done.length) || hasActiveModalIn(done) ? 'open' : ''}>
+        <summary>Ολοκληρωμένα (${done.length})</summary>
+        <div class="completed-body">${doneHtml}</div>
+      </details>
+
+      <details class="completed-wrap" ${(hasFilter && deleted.length) || hasActiveModalIn(deleted) ? 'open' : ''}>
+        <summary>Διαγραμμένα (${deleted.length})</summary>
+        <div class="completed-body">${deletedHtml}</div>
+      </details>
+    </div>`;
+}
+
 /* ---------- master render ---------- */
 
 function render(){
@@ -2070,9 +2244,16 @@ function render(){
     <div class="shell">
       <div class="brand-ribbon"></div>
       <div class="topnav">
-        <h1>Αλλαγές παροχών<span class="wordmark-sub">Μινώα Ενεργειακή</span></h1>
+        <h1>ΜΙΝΩΑ<span class="wordmark-sub">Σύστημα Διαχείρισης</span></h1>
         <button class="navbtn ${state.page==='home'?'active':''}" data-action="goto" data-page="home">Καταχώρηση</button>
-        <button class="navbtn ${state.page==='view'?'active':''}" data-action="goto" data-page="view">Προβολή αλλαγών</button>
+        <div class="navbtn-dropdown-wrap">
+          <button class="navbtn ${(state.page==='view'||state.page==='membershipView')?'active':''}" data-action="toggle-view-menu">Προβολή αιτημάτων ▾</button>
+          ${state.viewMenuOpen ? `
+            <div class="navbtn-dropdown">
+              <button data-action="goto" data-page="view">Αιτήματα αλλαγών</button>
+              <button data-action="goto" data-page="membershipView">Αιτήματα νέων μελών</button>
+            </div>` : ''}
+        </div>
         <button class="navbtn ${state.page==='search'?'active':''}" data-action="goto" data-page="search">Αναζήτηση</button>
         <button class="navbtn ${state.page==='contacts'?'active':''}" data-action="goto" data-page="contacts">Κατάλογος επικοινωνίας</button>
         <button class="navbtn ${state.page==='stats'?'active':''}" data-action="goto" data-page="stats">Στατιστικά</button>
@@ -2083,7 +2264,7 @@ function render(){
         </form>
       </div>
       <div class="page">
-        ${state.page === 'home' ? renderHome() : state.page === 'view' ? renderView() : state.page === 'search' ? renderSearch() : state.page === 'contacts' ? renderContacts() : state.page === 'account' ? renderAccount() : renderStats()}
+        ${state.page === 'home' ? renderHome() : state.page === 'view' ? renderView() : state.page === 'membershipView' ? renderMembershipView() : state.page === 'search' ? renderSearch() : state.page === 'contacts' ? renderContacts() : state.page === 'account' ? renderAccount() : renderStats()}
       </div>
     </div>
     ${state.toast ? `<div class="toast">${esc(state.toast)}</div>` : ''}
@@ -2117,6 +2298,7 @@ document.addEventListener('click', async (ev)=>{
       state.editingPartialId = id; state.editingPartialProjectId = pid;
       state.deletingId = null; state.deletingProjectId = null;
       state.editingEntryId = null; state.editingEntryProjectId = null;
+      state.membershipCompleteId = null;
       render();
     }
     else if(action==='partial-cancel'){ state.editingPartialId = null; state.editingPartialProjectId = null; render(); }
@@ -2132,6 +2314,7 @@ document.addEventListener('click', async (ev)=>{
       state.deletingId = id; state.deletingProjectId = pid;
       state.editingPartialId = null; state.editingPartialProjectId = null;
       state.editingEntryId = null; state.editingEntryProjectId = null;
+      state.membershipCompleteId = null;
       render();
     }
     else if(action==='delete-cancel'){ state.deletingId = null; state.deletingProjectId = null; render(); }
@@ -2146,14 +2329,35 @@ document.addEventListener('click', async (ev)=>{
       state.deletingId = null; state.deletingProjectId = null;
       state.editingPartialId = null; state.editingPartialProjectId = null;
       state.editingEntryId = null; state.editingEntryProjectId = null;
+      state.membershipCompleteId = null;
       render();
     }
     else if(action==='permanent-delete-cancel'){ state.permanentDeleteId = null; state.permanentDeleteProjectId = null; render(); }
     else if(action==='permanent-delete-confirm') permanentlyDeleteEntry(id, pid);
+    else if(action==='membership-complete-ask'){
+      state.membershipCompleteId = id;
+      state.deletingId = null; state.deletingProjectId = null;
+      state.editingPartialId = null; state.editingPartialProjectId = null;
+      state.editingEntryId = null; state.editingEntryProjectId = null;
+      state.permanentDeleteId = null; state.permanentDeleteProjectId = null;
+      render();
+    }
+    else if(action==='membership-complete-cancel'){ state.membershipCompleteId = null; render(); }
+    else if(action==='membership-complete-confirm'){
+      const projectSel = document.getElementById('mc-project');
+      const enrolledProjectId = projectSel ? projectSel.value : '';
+      const allChecked = ['mc-account','mc-afm','mc-application','mc-agreement'].every(cid => document.getElementById(cid)?.checked);
+      if(!enrolledProjectId){ showToast('Επίλεξε έργο ένταξης.'); return; }
+      if(!allChecked){ showToast('Πρέπει να επιβεβαιώσεις όλες τις προϋποθέσεις.'); return; }
+      completeMembership(id, enrolledProjectId);
+    }
+    else if(action==='toggle-view-menu'){ state.viewMenuOpen = !state.viewMenuOpen; render(); }
+    else if(action==='set-home-form-type'){ state.homeFormType = btn.dataset.type; render(); }
     else if(action==='edit-open'){
       state.editingEntryId = id; state.editingEntryProjectId = pid;
       state.editingPartialId = null; state.editingPartialProjectId = null;
       state.deletingId = null; state.deletingProjectId = null;
+      state.membershipCompleteId = null;
       render();
     }
     else if(action==='edit-cancel'){ state.editingEntryId = null; state.editingEntryProjectId = null; render(); }
@@ -2207,6 +2411,8 @@ document.addEventListener('click', async (ev)=>{
   }
   if(ev.target.id === 'btn-add'){
     if(state.submitting) return;
+    const formType = state.homeFormType === 'membership' ? 'membership' : 'change';
+    const isMembership = formType === 'membership';
     const projectId = document.getElementById('in-project').value;
     const supplyNumber = document.getElementById('in-supply').value;
     const date = document.getElementById('in-date').value || todayISO();
@@ -2235,11 +2441,12 @@ document.addEventListener('click', async (ev)=>{
       return;
     }
     if(!desc.trim()){
-      showToast('Συμπλήρωσε τι αλλαγή θέλει.');
+      showToast(isMembership ? 'Συμπλήρωσε σημειώσεις για το αίτημα.' : 'Συμπλήρωσε τι αλλαγή θέλει.');
       return;
     }
-    state.homeSelectedProject = projectId;
-    const proj = PROJECTS.find(p=>p.id===projectId);
+    const bucketId = isMembership ? MEMBERSHIP_BUCKET : projectId;
+    if(!isMembership) state.homeSelectedProject = projectId;
+    const proj = isMembership ? null : PROJECTS.find(p=>p.id===projectId);
     state.submitting = true;
     setTimeout(()=>{
       const s = document.getElementById('in-supply'); if(s) s.value='';
@@ -2257,15 +2464,15 @@ document.addEventListener('click', async (ev)=>{
       const att = document.getElementById('in-attachment'); if(att) att.value='';
     }, 0);
     const {url: fileUrl, name: fileName} = await uploadAttachment(attachmentFile);
-    const entrySaved = await addEntry(projectId, date, lastName, firstName, afm, supplyNumber, contact, contactName, desc, fileUrl, fileName);
-    const contactSaved = await addOrUpdateContact(lastName, firstName, afm, contact, contactName, projectId);
+    const entrySaved = await addEntry(bucketId, formType, date, lastName, firstName, afm, supplyNumber, contact, contactName, desc, fileUrl, fileName);
+    const contactSaved = await addOrUpdateContact(lastName, firstName, afm, contact, contactName, isMembership ? null : projectId);
     state.submitting = false;
     if(entrySaved && contactSaved){
-      showToast(`Καταχωρήθηκε στο ${proj.name}`);
+      showToast(isMembership ? 'Καταχωρήθηκε στα αιτήματα νέων μελών' : `Καταχωρήθηκε στο ${proj.name}`);
     } else if(!entrySaved){
-      showToast('Προσοχή: η αλλαγή φαίνεται στην οθόνη αλλά η αποθήκευση απέτυχε — μην κλείσεις το παράθυρο, δοκίμασε ξανά.');
+      showToast('Προσοχή: το αίτημα φαίνεται στην οθόνη αλλά η αποθήκευση απέτυχε — μην κλείσεις το παράθυρο, δοκίμασε ξανά.');
     } else {
-      showToast('Η αλλαγή καταχωρήθηκε, αλλά τα στοιχεία επικοινωνίας δεν αποθηκεύτηκαν στον κατάλογο — δοκίμασε ξανά.');
+      showToast('Το αίτημα καταχωρήθηκε, αλλά τα στοιχεία επικοινωνίας δεν αποθηκεύτηκαν στον κατάλογο — δοκίμασε ξανά.');
     }
   }
   if(ev.target.id === 'btn-change-password'){
@@ -2375,6 +2582,11 @@ document.addEventListener('change', (ev)=>{
   if(ev.target.id === 'in-project'){
     updateDupWarning();
   }
+  if(ev.target.classList.contains('mc-check') || ev.target.id === 'mc-project'){
+    // Deliberately NOT calling render() here — these checkboxes aren't
+    // tracked in `state`, so a re-render would rebuild them unchecked.
+    updateMembershipCompleteButton();
+  }
   if(ev.target.id === 'import-file'){
     const file = ev.target.files && ev.target.files[0];
     if(file){
@@ -2448,9 +2660,18 @@ function pickSuggestion(contactId){
   updateDupWarning();
 }
 
+function updateMembershipCompleteButton(){
+  const btn = document.getElementById('mc-confirm');
+  if(!btn) return;
+  const allChecked = ['mc-account','mc-afm','mc-application','mc-agreement'].every(id => document.getElementById(id)?.checked);
+  const projectSelected = !!(document.getElementById('mc-project')?.value);
+  btn.disabled = !(allChecked && projectSelected);
+}
+
 function updateDupWarning(){
   const box = document.getElementById('dup-warning');
   if(!box) return;
+  if(state.homeFormType === 'membership'){ box.style.display = 'none'; return; }
   const projectEl = document.getElementById('in-project');
   const lastEl = document.getElementById('in-lastname');
   const firstEl = document.getElementById('in-firstname');
@@ -2488,6 +2709,7 @@ render();
 // with a first-time fetch for that project (which could otherwise overwrite
 // data saved moments earlier).
 PROJECTS.forEach(p => loadEntries(p.id));
+loadEntries(MEMBERSHIP_BUCKET);
 // Preload the contact directory too, so autocomplete suggestions on the
 // registration form work immediately.
 loadContacts();
@@ -2502,7 +2724,7 @@ loadUsers();
 setInterval(()=>{
   if(document.hidden) return;
   if(state.page === 'home') return;
-  if(state.editingEntryId || state.editingPartialId || state.deletingId) return;
+  if(state.editingEntryId || state.editingPartialId || state.deletingId || state.membershipCompleteId) return;
   Object.keys(state.entries).forEach(pid => {
     if(state.entries[pid] !== undefined) refreshEntries(pid);
   });
