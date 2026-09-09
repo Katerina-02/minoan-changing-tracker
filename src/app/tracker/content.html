@@ -424,6 +424,7 @@ const state = {
   entries: {},                // projectId -> array | undefined (not loaded yet)
   loading: {},
   contacts: undefined,        // array | undefined (not loaded yet)
+  users: undefined,           // email -> name map | undefined (not loaded yet)
   contactsLoading: false,
   deletingId: null,
   deletingProjectId: null,
@@ -488,6 +489,7 @@ function entryToExportRow(e, includeProjectLabel){
   row['Στοιχεία επικοινωνίας'] = e.contactInfo || '';
   row['Επικοινωνία με'] = e.contactPersonName || '';
   row['Σύνδεσμος αρχείου'] = e.fileUrl ? (window.location.origin + attachmentViewUrl(e)) : '';
+  row['Καταχωρήθηκε από'] = e.createdByEmail ? creatorLabel(e.createdByEmail) : '';
   if(e.status === 'partial') row['Σχόλια μερικής εκτέλεσης'] = notes.map(n => `${toDisplayDate(n.date)}: ${n.text}`).join(' | ');
   if(e.status === 'done') row['Ολοκληρώθηκε στις'] = toDisplayDate(e.completedDate);
   if(e.status === 'deleted'){ row['Διαγράφηκε στις'] = toDisplayDate(e.deletedDate); row['Αιτιολογία διαγραφής'] = e.deleteReason || ''; }
@@ -836,6 +838,7 @@ function rowToEntry(row){
     deleteReason: row.deleteReason || null,
     fileUrl: row.fileUrl || null,
     fileName: row.fileName || null,
+    createdByEmail: row.createdByEmail || null,
   };
 }
 
@@ -892,6 +895,30 @@ async function refreshEntries(projectId){
     state.entries[projectId] = rows.map(rowToEntry);
     render();
   }catch(err){ /* transient network hiccup — try again next tick */ }
+}
+
+async function loadUsers(){
+  if(state.users !== undefined) return;
+  try{
+    const res = await fetch('/api/users', {cache: 'no-store'});
+    if(!res.ok) throw new Error('load failed');
+    const rows = await res.json();
+    const map = {};
+    rows.forEach(u => { map[u.email] = u.name; });
+    state.users = map;
+  }catch(err){
+    state.users = {};
+  }
+  render();
+}
+
+// Resolves the email stamped on an entry/contact to a friendly name,
+// falling back to the raw email if the account is unknown or not yet
+// loaded (never blocks rendering on this).
+function creatorLabel(email){
+  if(!email) return '';
+  if(state.users && state.users[email]) return state.users[email];
+  return email;
 }
 
 async function loadContacts(){
@@ -1328,7 +1355,7 @@ function renderEntry(e, projectId, priority, opts={}){
       </div>
       <div class="entry-body">
         <div class="entry-name">${renderName(e)}${e.status==='partial' ? '<span class="badge-partial">Μερική</span>' : ''}${staleBadge}${projectBadge}</div>
-        <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', e.contactInfo ? esc(e.contactInfo) : ''].filter(Boolean).join(' · ')}</div>
+        <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', e.contactInfo ? esc(e.contactInfo) : '', e.createdByEmail ? `καταχωρήθηκε από ${esc(creatorLabel(e.createdByEmail))}` : ''].filter(Boolean).join(' · ')}</div>
         <div class="entry-desc">${esc(e.description)}</div>
         ${renderAttachmentLink(e)}
         ${extra}
@@ -1365,7 +1392,7 @@ function renderSearchResult(e, proj, priority){
       </div>
       <div class="entry-body">
         <div class="entry-name">${renderName(e)}${isStale(e) ? '<span class="badge-partial" style="color:var(--danger); background:var(--danger-bg); border-color:var(--danger);">⏳ 3+ μήνες</span>' : ''}</div>
-        <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', e.contactInfo ? esc(e.contactInfo) : ''].filter(Boolean).join(' · ')}</div>
+        <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', e.contactInfo ? esc(e.contactInfo) : '', e.createdByEmail ? `καταχωρήθηκε από ${esc(creatorLabel(e.createdByEmail))}` : ''].filter(Boolean).join(' · ')}</div>
         <div style="margin:4px 0 6px;">
           <span class="badge-partial" style="color:${cw.dark}; background:${cw.soft}; border-color:${cw.c};">${esc(proj.name)}</span>
           <span class="badge-partial" style="margin-left:4px;">${STATUS_LABEL[e.status]}</span>
@@ -2463,6 +2490,8 @@ PROJECTS.forEach(p => loadEntries(p.id));
 // Preload the contact directory too, so autocomplete suggestions on the
 // registration form work immediately.
 loadContacts();
+// Preload the user list, so "Καταχώρηση από" can resolve names right away.
+loadUsers();
 
 // Background sync: with several people using this at once, poll every
 // 20s for changes made by others. Skipped while a tab is hidden, while
