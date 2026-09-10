@@ -35,6 +35,7 @@ model Entry {
   fileUrl             String?
   fileName            String?
   membershipChecklist Json?     @default("{}")
+  isVulnerable        Boolean   @default(false) // "νέο μέλος" only — ευάλωτος καταναλωτής
   createdByEmail      String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt

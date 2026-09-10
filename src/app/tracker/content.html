@@ -868,6 +868,7 @@ function rowToEntry(row){
     fileUrl: row.fileUrl || null,
     fileName: row.fileName || null,
     membershipChecklist: row.membershipChecklist || {},
+    isVulnerable: !!row.isVulnerable,
     createdByEmail: row.createdByEmail || null,
   };
 }
@@ -1041,7 +1042,7 @@ function currentEntries(){
   return state.entries[state.currentProject] || [];
 }
 
-async function addEntry(bucketId, type, date, lastName, firstName, afm, supplyNumber, contactInfo, contactPersonName, description, fileUrl, fileName){
+async function addEntry(bucketId, type, date, lastName, firstName, afm, supplyNumber, contactInfo, contactPersonName, description, fileUrl, fileName, isVulnerable){
   if(state.entries[bucketId] === undefined){
     await loadEntries(bucketId);
   }
@@ -1052,7 +1053,8 @@ async function addEntry(bucketId, type, date, lastName, firstName, afm, supplyNu
     supplyNumber: supplyNumber.trim(), contactInfo: (contactInfo||'').trim(), contactPersonName: (contactPersonName||'').trim(),
     description: description.trim(),
     status: 'pending', partialNotes: [], completedDate: null,
-    fileUrl: fileUrl || null, fileName: fileName || null, membershipChecklist: {}
+    fileUrl: fileUrl || null, fileName: fileName || null, membershipChecklist: {},
+    isVulnerable: isMembership ? !!isVulnerable : false
   };
   const list = state.entries[bucketId] || [];
   list.push(entry);
@@ -1066,7 +1068,7 @@ async function addEntry(bucketId, type, date, lastName, firstName, afm, supplyNu
         id: entry.id, type, projectId: entry.projectId, date, lastName: entry.lastName, firstName: entry.firstName,
         afm: entry.afm, supplyNumber: entry.supplyNumber, contactInfo: entry.contactInfo,
         contactPersonName: entry.contactPersonName, description: entry.description,
-        fileUrl: entry.fileUrl, fileName: entry.fileName
+        fileUrl: entry.fileUrl, fileName: entry.fileName, isVulnerable: entry.isVulnerable
       })
     });
     return res.ok;
@@ -1449,6 +1451,9 @@ function renderEntry(e, projectId, priority, opts={}){
   const staleBadge = isStale(e)
     ? `<span class="badge-partial" style="color:var(--danger); background:var(--danger-bg); border-color:var(--danger);">⏳ 3+ μήνες</span>`
     : '';
+  const vulnerableBadge = e.isVulnerable
+    ? `<span class="badge-partial" style="color:var(--danger); background:var(--danger-bg); border-color:var(--danger);">⚠ Ευάλωτος καταναλωτής</span>`
+    : '';
 
   if(state.editingEntryId === e.id && state.editingEntryProjectId === projectId){
     const {last, first} = nameParts(e);
@@ -1472,6 +1477,13 @@ function renderEntry(e, projectId, priority, opts={}){
           <div class="field"><label>Επικοινωνία με</label><input type="text" id="edit-contact-name" value="${esc(e.contactPersonName||'')}"></div>
         </div>
         <div class="field"><label>Περιγραφή αλλαγής</label><textarea id="edit-desc" rows="2">${esc(e.description)}</textarea></div>
+        ${e.type === 'membership' ? `
+        <div class="field">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" id="edit-vulnerable" ${e.isVulnerable?'checked':''}>
+            <span>Ευάλωτος καταναλωτής</span>
+          </label>
+        </div>` : ''}
         <div class="field">
           <label>📎 Επισυναπτόμενο αρχείο</label>
           ${e.fileUrl ? `
@@ -1499,7 +1511,7 @@ function renderEntry(e, projectId, priority, opts={}){
         ${toDisplayDate(e.date)}
       </div>
       <div class="entry-body">
-        <div class="entry-name">${renderName(e)}${e.status==='partial' ? '<span class="badge-partial">Μερική</span>' : ''}${staleBadge}${projectBadge}</div>
+        <div class="entry-name">${renderName(e)}${e.status==='partial' ? '<span class="badge-partial">Μερική</span>' : ''}${staleBadge}${vulnerableBadge}${projectBadge}</div>
         <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', e.contactInfo ? esc(e.contactInfo) : '', e.createdByEmail ? `καταχωρήθηκε από ${esc(creatorLabel(e.createdByEmail))}` : ''].filter(Boolean).join(' · ')}</div>
         <div class="entry-desc">${esc(e.description)}</div>
         ${renderAttachmentLink(e)}
@@ -1973,6 +1985,14 @@ function renderHome(){
           <label for="in-desc">${isMembership ? 'Σημειώσεις αιτήματος' : 'Περιγραφή αλλαγής'}</label>
           <textarea id="in-desc" rows="3" placeholder="${isMembership ? 'π.χ. ενδιαφέρεται να μπει με τη νέα του παροχή' : 'π.χ. Αύξηση ισχύος κατά 1kW'}"></textarea>
         </div>
+        ${isMembership ? `
+        <div class="field">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" id="in-vulnerable">
+            <span>Ευάλωτος καταναλωτής</span>
+          </label>
+          <div class="field-hint" style="color:var(--ink-soft);">Τσέκαρε αν το άτομο εντάσσεται στην κατηγορία ευάλωτων καταναλωτών.</div>
+        </div>` : ''}
         <div class="field">
           <label for="in-attachment">📎 Επισύναψη αρχείου <span style="font-weight:400; opacity:.75;">(προαιρετικό — PDF ή εικόνα, έως 4MB)</span></label>
           <input type="file" id="in-attachment" accept="application/pdf,image/*">
@@ -2429,6 +2449,7 @@ document.addEventListener('click', async (ev)=>{
       const attachmentFile = (attachmentInput && attachmentInput.files && attachmentInput.files[0]) || null;
       const removeFileEl = document.getElementById('edit-remove-file');
       const removeFile = !!(removeFileEl && removeFileEl.checked);
+      const vulnerableEl = document.getElementById('edit-vulnerable');
       if(!lastName.trim() || !firstName.trim()){ showToast('Συμπλήρωσε επώνυμο και όνομα.'); return; }
       if(!supplyNumber){ showToast('Συμπλήρωσε τον αριθμό παροχής.'); return; }
       if(afm && !/^\d{9}$/.test(afm)){ showToast('Το ΑΦΜ πρέπει να έχει ακριβώς 9 ψηφία.'); return; }
@@ -2439,6 +2460,7 @@ document.addEventListener('click', async (ev)=>{
         lastName: lastName.trim(), firstName: firstName.trim(), afm, supplyNumber,
         contactInfo, contactPersonName, description: description.trim()
       };
+      if(vulnerableEl) fields.isVulnerable = vulnerableEl.checked;
       if(attachmentFile){
         const {url: fileUrl, name: fileName} = await uploadAttachment(attachmentFile);
         if(fileUrl){ fields.fileUrl = fileUrl; fields.fileName = fileName; }
@@ -2480,6 +2502,8 @@ document.addEventListener('click', async (ev)=>{
     const desc = document.getElementById('in-desc').value;
     const attachmentInput = document.getElementById('in-attachment');
     const attachmentFile = (attachmentInput && attachmentInput.files && attachmentInput.files[0]) || null;
+    const vulnerableEl = document.getElementById('in-vulnerable');
+    const isVulnerable = !!(vulnerableEl && vulnerableEl.checked);
     if(!supplyNumber.trim()){
       showToast('Συμπλήρωσε τον αριθμό παροχής.');
       return;
@@ -2518,9 +2542,10 @@ document.addEventListener('click', async (ev)=>{
       const sug = document.getElementById('contact-suggestions'); if(sug){ sug.style.display='none'; sug.innerHTML=''; }
       const dw = document.getElementById('dup-warning'); if(dw) dw.style.display='none';
       const att = document.getElementById('in-attachment'); if(att) att.value='';
+      const vu = document.getElementById('in-vulnerable'); if(vu) vu.checked = false;
     }, 0);
     const {url: fileUrl, name: fileName} = await uploadAttachment(attachmentFile);
-    const entrySaved = await addEntry(bucketId, formType, date, lastName, firstName, afm, supplyNumber, contact, contactName, desc, fileUrl, fileName);
+    const entrySaved = await addEntry(bucketId, formType, date, lastName, firstName, afm, supplyNumber, contact, contactName, desc, fileUrl, fileName, isVulnerable);
     const contactSaved = await addOrUpdateContact(lastName, firstName, afm, contact, contactName, isMembership ? null : projectId);
     state.submitting = false;
     if(entrySaved && contactSaved){

@@ -21,6 +21,7 @@ const PATCHABLE_FIELDS = [
   "fileName",
   "projectId",
   "membershipChecklist",
+  "isVulnerable",
 ] as const;
 
 export async function PATCH(

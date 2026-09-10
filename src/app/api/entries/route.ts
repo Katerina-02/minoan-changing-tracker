@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
       partialNotes: [],
       fileUrl: body.fileUrl || null,
       fileName: body.fileName || null,
+      isVulnerable: type === "membership" ? !!body.isVulnerable : false,
       createdByEmail: session?.email ?? null,
     },
   });
