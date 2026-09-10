@@ -1128,6 +1128,51 @@ async function completeMembership(id, enrolledProjectId){
   if(!ok) showToast('Η αποθήκευση απέτυχε — δοκίμασε ξανά.');
 }
 
+// Saves checklist progress as soon as a box is (un)checked, independent of
+// whether all four are done yet — e.g. account/AFM/application may be
+// ready well before the συμφωνητικό is signed. Deliberately doesn't call
+// render(), since these checkboxes aren't tracked in `state`.
+async function flushMembershipChecklistNow(id){
+  const list = state.entries[MEMBERSHIP_BUCKET] || [];
+  const e = list.find(x=>x.id===id);
+  if(!e) return;
+  const checklist = {
+    account: !!document.getElementById('mc-account')?.checked,
+    afm: !!document.getElementById('mc-afm')?.checked,
+    application: !!document.getElementById('mc-application')?.checked,
+    agreement: !!document.getElementById('mc-agreement')?.checked,
+  };
+  e.membershipChecklist = checklist;
+  const ok = await patchEntry(id, {membershipChecklist: checklist});
+  if(!ok) showToast('Η αποθήκευση απέτυχε — δοκίμασε ξανά.');
+}
+
+// Debounced so that ticking several boxes in quick succession sends one
+// PATCH with the latest state, instead of several overlapping requests
+// that could race and let an earlier (staler) one overwrite a later one.
+let membershipChecklistSaveTimer = null;
+function saveMembershipChecklist(id){
+  if(membershipChecklistSaveTimer) clearTimeout(membershipChecklistSaveTimer);
+  membershipChecklistSaveTimer = setTimeout(() => {
+    membershipChecklistSaveTimer = null;
+    flushMembershipChecklistNow(id);
+  }, 400);
+}
+
+// Called whenever the complete-panel is about to close or switch to a
+// different entry, so in-progress checking never gets silently dropped —
+// cancels any pending debounced save and flushes the current DOM state
+// immediately (reading it now, before the panel is removed from the DOM).
+function flushPendingMembershipChecklist(){
+  if(membershipChecklistSaveTimer){
+    clearTimeout(membershipChecklistSaveTimer);
+    membershipChecklistSaveTimer = null;
+  }
+  if(state.membershipCompleteId){
+    flushMembershipChecklistNow(state.membershipCompleteId);
+  }
+}
+
 async function markPartial(id, note, projectId){
   const list = state.entries[projectId] || [];
   const e = list.find(x=>x.id===id);
@@ -1218,6 +1263,7 @@ function switchProject(id){
   state.permanentDeleteProjectId = null;
   state.editingPartialId = null;
   state.editingPartialProjectId = null;
+  flushPendingMembershipChecklist();
   state.membershipCompleteId = null;
   state.viewSearchQuery = '';
   if(id === ALL_ID){
@@ -1237,6 +1283,7 @@ function goToPage(page){
   state.permanentDeleteProjectId = null;
   state.editingPartialId = null;
   state.editingPartialProjectId = null;
+  flushPendingMembershipChecklist();
   state.membershipCompleteId = null;
   if(page === 'view'){
     if(state.currentProject === ALL_ID){
@@ -1367,8 +1414,11 @@ function renderEntry(e, projectId, priority, opts={}){
   let membershipCompleteBox = '';
   if(e.type === 'membership' && state.membershipCompleteId === e.id){
     const projectOptions = PROJECTS.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+    const cl = e.membershipChecklist || {};
+    const allChecked = !!(cl.account && cl.afm && cl.application && cl.agreement);
     membershipCompleteBox = `
       <div class="membership-complete-box">
+        <div class="field-hint" style="margin-top:0;">Τα κουτάκια αποθηκεύονται αυτόματα μόλις τα τσεκάρεις, ακόμα κι αν δεν έχεις όλα έτοιμα ακόμη.</div>
         <div class="field">
           <label>Έργο ένταξης</label>
           <select id="mc-project">
@@ -1377,13 +1427,13 @@ function renderEntry(e, projectId, priority, opts={}){
           </select>
         </div>
         <div class="mc-checklist">
-          <label><input type="checkbox" class="mc-check" id="mc-account"> Λογαριασμός</label>
-          <label><input type="checkbox" class="mc-check" id="mc-afm"> ΑΦΜ</label>
-          <label><input type="checkbox" class="mc-check" id="mc-application"> Αίτηση</label>
-          <label><input type="checkbox" class="mc-check" id="mc-agreement"> Συμφωνητικό</label>
+          <label><input type="checkbox" class="mc-check" id="mc-account" ${cl.account?'checked':''}> Λογαριασμός</label>
+          <label><input type="checkbox" class="mc-check" id="mc-afm" ${cl.afm?'checked':''}> ΑΦΜ</label>
+          <label><input type="checkbox" class="mc-check" id="mc-application" ${cl.application?'checked':''}> Αίτηση</label>
+          <label><input type="checkbox" class="mc-check" id="mc-agreement" ${cl.agreement?'checked':''}> Συμφωνητικό</label>
         </div>
         <div style="display:flex; gap:8px;">
-          <button class="btn btn-sm btn-done" id="mc-confirm" data-action="membership-complete-confirm" data-id="${e.id}" data-project="${projectId}" disabled>Ολοκλήρωση</button>
+          <button class="btn btn-sm btn-done" id="mc-confirm" data-action="membership-complete-confirm" data-id="${e.id}" data-project="${projectId}" ${allChecked?'':'disabled'}>Ολοκλήρωση</button>
           <button class="btn btn-sm btn-quiet" data-action="membership-complete-cancel">Άκυρο</button>
         </div>
       </div>`;
@@ -2335,6 +2385,7 @@ document.addEventListener('click', async (ev)=>{
     else if(action==='permanent-delete-cancel'){ state.permanentDeleteId = null; state.permanentDeleteProjectId = null; render(); }
     else if(action==='permanent-delete-confirm') permanentlyDeleteEntry(id, pid);
     else if(action==='membership-complete-ask'){
+      if(state.membershipCompleteId !== id) flushPendingMembershipChecklist();
       state.membershipCompleteId = id;
       state.deletingId = null; state.deletingProjectId = null;
       state.editingPartialId = null; state.editingPartialProjectId = null;
@@ -2342,8 +2393,13 @@ document.addEventListener('click', async (ev)=>{
       state.permanentDeleteId = null; state.permanentDeleteProjectId = null;
       render();
     }
-    else if(action==='membership-complete-cancel'){ state.membershipCompleteId = null; render(); }
+    else if(action==='membership-complete-cancel'){
+      flushPendingMembershipChecklist();
+      state.membershipCompleteId = null;
+      render();
+    }
     else if(action==='membership-complete-confirm'){
+      if(membershipChecklistSaveTimer){ clearTimeout(membershipChecklistSaveTimer); membershipChecklistSaveTimer = null; }
       const projectSel = document.getElementById('mc-project');
       const enrolledProjectId = projectSel ? projectSel.value : '';
       const allChecked = ['mc-account','mc-afm','mc-application','mc-agreement'].every(cid => document.getElementById(cid)?.checked);
@@ -2586,6 +2642,9 @@ document.addEventListener('change', (ev)=>{
     // Deliberately NOT calling render() here — these checkboxes aren't
     // tracked in `state`, so a re-render would rebuild them unchecked.
     updateMembershipCompleteButton();
+    if(ev.target.classList.contains('mc-check') && state.membershipCompleteId){
+      saveMembershipChecklist(state.membershipCompleteId);
+    }
   }
   if(ev.target.id === 'import-file'){
     const file = ev.target.files && ev.target.files[0];
