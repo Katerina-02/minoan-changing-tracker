@@ -1593,13 +1593,13 @@ function renderSearch(){
             : null;
           return renderSearchResult(m.e, m.proj, priority);
         }).join('')
-      : `<div class="empty-state">Καμία αλλαγή δεν βρέθηκε για "${esc(state.searchQuery.trim())}".</div>`;
+      : `<div class="empty-state">Κανένα αίτημα δεν βρέθηκε για "${esc(state.searchQuery.trim())}".</div>`;
   }
 
   return `
     <div class="home-wrap">
       <div class="kicker">Αναζήτηση σε όλα τα έργα</div>
-      <h2>Αναζήτηση αλλαγής</h2>
+      <h2>Αναζήτηση αιτήματος</h2>
       <div class="reg-form" style="margin-bottom:24px;">
         <div class="field" style="margin-bottom:0;">
           <label for="in-search">Ονοματεπώνυμο ή ΑΦΜ</label>
