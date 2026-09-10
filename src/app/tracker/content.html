@@ -428,6 +428,9 @@ const ALL_ID = 'all-projects';
 // under this pseudo-project key in state.entries so all the existing
 // per-project load/save/delete/edit machinery works for them unchanged.
 const MEMBERSHIP_BUCKET = 'membership-requests';
+// Stands in for a real project when rendering a membership request in a
+// context (search results) that expects a {id, name, color} project.
+const MEMBERSHIP_PSEUDO_PROJECT = {id: MEMBERSHIP_BUCKET, letter: 'Μ', name: 'Αίτημα ένταξης', color: 'all'};
 
 // Filled in server-side (see src/app/tracker/route.ts) with the logged-in user's name/email.
 const CURRENT_USER = {"name":"","email":""};
@@ -594,7 +597,12 @@ function exportXlsx(target){
         if(nameHit || afmHit) rows.push(entryToExportRow(e, p.name));
       });
     });
-    downloadXlsx('Αναζήτηση αλλαγών.xlsx', 'Αναζήτηση', rows);
+    (state.entries[MEMBERSHIP_BUCKET]||[]).forEach(e => {
+      const nameHit = fullName(e).toLowerCase().includes(sq);
+      const afmHit = e.afm && e.afm.includes(state.searchQuery.trim());
+      if(nameHit || afmHit) rows.push(entryToExportRow(e, MEMBERSHIP_PSEUDO_PROJECT.name));
+    });
+    downloadXlsx('Αναζήτηση αιτημάτων.xlsx', 'Αναζήτηση', rows);
   }
   else if(target === 'contacts'){
     const cq = state.contactsSearchQuery.trim().toLowerCase();
@@ -1295,9 +1303,9 @@ function goToPage(page){
     }
   }
   if(page === 'membershipView') loadEntries(MEMBERSHIP_BUCKET);
-  if(page === 'search') PROJECTS.forEach(p => loadEntries(p.id));
+  if(page === 'search'){ PROJECTS.forEach(p => loadEntries(p.id)); loadEntries(MEMBERSHIP_BUCKET); }
   if(page === 'contacts') loadContacts();
-  if(page === 'stats'){ PROJECTS.forEach(p => loadEntries(p.id)); loadContacts(); }
+  if(page === 'stats'){ PROJECTS.forEach(p => loadEntries(p.id)); loadEntries(MEMBERSHIP_BUCKET); loadContacts(); }
   render();
 }
 
@@ -1540,8 +1548,19 @@ function renderSearchResult(e, proj, priority){
     extra = renderPartialNotes(e);
   }
   if(e.status === 'done'){
-    extra = `<div class="entry-completed-date">Ολοκληρώθηκε: ${toDisplayDate(e.completedDate)}</div>`;
+    if(e.type === 'membership'){
+      const enrolledProj = PROJECTS.find(p=>p.id===e.projectId);
+      extra = `<div class="entry-completed-date">Ολοκληρώθηκε: ${toDisplayDate(e.completedDate)}${enrolledProj ? ` — Έργο ένταξης: ${esc(enrolledProj.name)}` : ''}</div>`;
+    } else {
+      extra = `<div class="entry-completed-date">Ολοκληρώθηκε: ${toDisplayDate(e.completedDate)}</div>`;
+    }
   }
+  const vulnerableBadge = e.isVulnerable
+    ? `<span class="badge-partial" style="color:var(--danger); background:var(--danger-bg); border-color:var(--danger);">⚠ Ευάλωτος καταναλωτής</span>`
+    : '';
+  const openButton = e.type === 'membership'
+    ? `<button class="btn btn-sm btn-quiet" data-action="goto" data-page="membershipView">Άνοιγμα στα αιτήματα ένταξης →</button>`
+    : `<button class="btn btn-sm btn-quiet" data-action="open-in-project" data-id="${proj.id}">Άνοιγμα στο έργο →</button>`;
   return `
     <div class="entry ${cls}">
       <div class="entry-date">
@@ -1549,7 +1568,7 @@ function renderSearchResult(e, proj, priority){
         ${toDisplayDate(e.date)}
       </div>
       <div class="entry-body">
-        <div class="entry-name">${renderName(e)}${isStale(e) ? '<span class="badge-partial" style="color:var(--danger); background:var(--danger-bg); border-color:var(--danger);">⏳ 3+ μήνες</span>' : ''}</div>
+        <div class="entry-name">${renderName(e)}${isStale(e) ? '<span class="badge-partial" style="color:var(--danger); background:var(--danger-bg); border-color:var(--danger);">⏳ 3+ μήνες</span>' : ''}${vulnerableBadge}</div>
         <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', e.contactInfo ? esc(e.contactInfo) : '', e.createdByEmail ? `καταχωρήθηκε από ${esc(creatorLabel(e.createdByEmail))}` : ''].filter(Boolean).join(' · ')}</div>
         <div style="margin:4px 0 6px;">
           <span class="badge-partial" style="color:${cw.dark}; background:${cw.soft}; border-color:${cw.c};">${esc(proj.name)}</span>
@@ -1560,7 +1579,7 @@ function renderSearchResult(e, proj, priority){
         ${extra}
       </div>
       <div class="entry-actions">
-        <button class="btn btn-sm btn-quiet" data-action="open-in-project" data-id="${proj.id}">Άνοιγμα στο έργο →</button>
+        ${openButton}
         <button class="btn btn-sm btn-quiet" data-action="download-receipt" data-id="${e.id}" data-project="${proj.id}">⬇ Εκτύπωση</button>
       </div>
     </div>`;
@@ -1568,11 +1587,11 @@ function renderSearchResult(e, proj, priority){
 
 function renderSearch(){
   const q = state.searchQuery.trim().toLowerCase();
-  const stillLoading = PROJECTS.some(p => state.entries[p.id] === undefined);
+  const stillLoading = PROJECTS.some(p => state.entries[p.id] === undefined) || state.entries[MEMBERSHIP_BUCKET] === undefined;
 
   let resultsHtml = '';
   if(!q){
-    resultsHtml = `<div class="empty-state">Γράψε ονοματεπώνυμο ή ΑΦΜ για να δεις τις αλλαγές του, σε όλα τα έργα.</div>`;
+    resultsHtml = `<div class="empty-state">Γράψε ονοματεπώνυμο ή ΑΦΜ για να δεις τα αιτήματά του, σε όλα τα έργα και στα αιτήματα ένταξης.</div>`;
   } else if(stillLoading){
     resultsHtml = `<div class="empty-state">Φόρτωση…</div>`;
   } else {
@@ -1583,6 +1602,11 @@ function renderSearch(){
         const afmHit = e.afm && e.afm.includes(state.searchQuery.trim());
         if(nameHit || afmHit) matches.push({e, proj:p});
       });
+    });
+    (state.entries[MEMBERSHIP_BUCKET]||[]).forEach(e=>{
+      const nameHit = fullName(e).toLowerCase().includes(q);
+      const afmHit = e.afm && e.afm.includes(state.searchQuery.trim());
+      if(nameHit || afmHit) matches.push({e, proj: MEMBERSHIP_PSEUDO_PROJECT});
     });
     matches.sort((a,b)=> a.e.date < b.e.date ? 1 : a.e.date > b.e.date ? -1 : 0);
 
@@ -1660,7 +1684,7 @@ function renderMonthlyChart(doneList){
 }
 
 function renderStats(){
-  const allLoaded = PROJECTS.every(p => state.entries[p.id] !== undefined);
+  const allLoaded = PROJECTS.every(p => state.entries[p.id] !== undefined) && state.entries[MEMBERSHIP_BUCKET] !== undefined;
   if(!allLoaded || state.contacts === undefined){
     return `<div class="stats-wrap"><div class="kicker">Στατιστικά</div><h2>Μια ματιά στο σύνολο</h2><div class="empty-state">Φόρτωση…</div></div>`;
   }
@@ -1708,6 +1732,25 @@ function renderStats(){
   const highlight = done.length > 0
     ? `Έχεις ολοκληρώσει <strong>${done.length}</strong> αλλαγ${done.length===1?'ή':'ές'} μέχρι στιγμής — συνέχισε έτσι! 🎉`
     : `Δεν έχεις ολοκληρώσει ακόμη καμία αλλαγή — η πρώτη είναι πάντα η πιο δύσκολη.`;
+
+  // ---- Membership ("νέο μέλος") requests ----
+  const membershipAll = state.entries[MEMBERSHIP_BUCKET] || [];
+  const membershipPending = membershipAll.filter(e=>e.status==='pending');
+  const membershipDone = membershipAll.filter(e=>e.status==='done');
+  const membershipDeleted = membershipAll.filter(e=>e.status==='deleted');
+  const vulnerableCount = membershipAll.filter(e=>e.isVulnerable).length;
+
+  const maxEnrolledPerProject = Math.max(1, ...PROJECTS.map(p => membershipDone.filter(e=>e.projectId===p.id).length));
+  const enrolledBars = PROJECTS.map(p => {
+    const count = membershipDone.filter(e=>e.projectId===p.id).length;
+    const cw = TAB_COLORWAYS[p.color];
+    const pct = Math.round((count / maxEnrolledPerProject) * 100);
+    return `<div class="stat-bar-row">
+      <div class="bar-label">${esc(p.name)}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${cw.c};"></div></div>
+      <div class="bar-count">${count}</div>
+    </div>`;
+  }).join('');
 
   return `
     <div class="stats-wrap">
@@ -1758,6 +1801,30 @@ function renderStats(){
 
       <div class="stat-section-title">Εκκρεμότητες ανά έργο</div>
       <div class="stat-bars">${projectBars}</div>
+
+      <div class="stat-section-title" style="margin-top:8px;">Αιτήματα νέων μελών</div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-number">${membershipAll.length}</div><div class="stat-label">Σύνολο αιτημάτων ένταξης</div></div>
+        <div class="stat-card"><div class="stat-number">${membershipPending.length}</div><div class="stat-label">Εκκρεμούν τώρα</div></div>
+        <div class="stat-card"><div class="stat-number">${membershipDone.length}</div><div class="stat-label">Εντάχθηκαν συνολικά</div></div>
+        <div class="stat-card"><div class="stat-number">${membershipDeleted.length}</div><div class="stat-label">Διαγράφηκαν</div></div>
+        <div class="stat-card"><div class="stat-number">${vulnerableCount}</div><div class="stat-label">Ευάλωτοι καταναλωτές</div></div>
+      </div>
+
+      <div class="charts-row">
+        <div class="chart-card">
+          <div class="stat-section-title">Κατάσταση αιτημάτων ένταξης</div>
+          ${renderPieChart([
+            {label:'Εκκρεμούν', value: membershipPending.length, color:'#5C6B77'},
+            {label:'Εντάχθηκαν', value: membershipDone.length, color:'#189A57'},
+            {label:'Διαγράφηκαν', value: membershipDeleted.length, color:'#D64545'},
+          ])}
+        </div>
+        <div class="chart-card">
+          <div class="stat-section-title">Νέα μέλη ανά έργο</div>
+          <div class="stat-bars" style="margin-bottom:0;">${enrolledBars}</div>
+        </div>
+      </div>
     </div>`;
 }
 
