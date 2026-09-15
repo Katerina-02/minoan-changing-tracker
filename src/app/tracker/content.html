@@ -1015,9 +1015,11 @@ async function addOrUpdateContact(lastName, firstName, afm, contactValue, person
     record.projectIds.push(projectId);
   }
   const val = contactValue.trim();
-  const already = record.contacts.some(c => c.value.trim().toLowerCase() === val.toLowerCase());
-  if(!already){
-    record.contacts.push({value: val, personName: (personName||'').trim()});
+  if(val){
+    const already = record.contacts.some(c => c.value.trim().toLowerCase() === val.toLowerCase());
+    if(!already){
+      record.contacts.push({value: val, personName: (personName||'').trim()});
+    }
   }
   state.contacts = list;
 
@@ -1481,7 +1483,7 @@ function renderEntry(e, projectId, priority, opts={}){
           <div class="field"><label>Αριθμός παροχής</label><input type="text" id="edit-supply" value="${esc(e.supplyNumber||'')}" inputmode="numeric"></div>
         </div>
         <div class="edit-row">
-          <div class="field"><label>Στοιχεία επικοινωνίας</label><input type="text" id="edit-contact" value="${esc(e.contactInfo||'')}"></div>
+          <div class="field"><label>Στοιχεία επικοινωνίας <span style="font-weight:400; opacity:.75;">(προαιρετικό)</span></label><input type="text" id="edit-contact" value="${esc(e.contactInfo||'')}"></div>
           <div class="field"><label>Επικοινωνία με</label><input type="text" id="edit-contact-name" value="${esc(e.contactPersonName||'')}"></div>
         </div>
         <div class="field"><label>Περιγραφή αλλαγής</label><textarea id="edit-desc" rows="2">${esc(e.description)}</textarea></div>
@@ -2040,7 +2042,7 @@ function renderHome(){
         <div id="dup-warning" class="field-hint" style="display:none; margin-top:-10px; margin-bottom:16px;"></div>
         <div class="reg-row2">
           <div class="field">
-            <label for="in-contact">Στοιχεία επικοινωνίας</label>
+            <label for="in-contact">Στοιχεία επικοινωνίας <span style="font-weight:400; opacity:.75;">(προαιρετικό)</span></label>
             <input type="text" id="in-contact" placeholder="τηλέφωνο ή email">
           </div>
           <div class="field">
@@ -2521,7 +2523,6 @@ document.addEventListener('click', async (ev)=>{
       if(!supplyNumber){ showToast('Συμπλήρωσε τον αριθμό παροχής.'); return; }
       if(afm && !/^\d{9}$/.test(afm)){ showToast('Το ΑΦΜ πρέπει να έχει ακριβώς 9 ψηφία.'); return; }
       if(supplyNumber && !/^\d{1,11}$/.test(supplyNumber)){ showToast('Ο αριθμός παροχής πρέπει να έχει έως 11 ψηφία.'); return; }
-      if(!contactInfo){ showToast('Συμπλήρωσε στοιχεία επικοινωνίας.'); return; }
       if(!description.trim()){ showToast('Συμπλήρωσε περιγραφή αλλαγής.'); return; }
       const fields = {
         lastName: lastName.trim(), firstName: firstName.trim(), afm, supplyNumber,
@@ -2581,10 +2582,6 @@ document.addEventListener('click', async (ev)=>{
     }
     if(afm && !/^\d{9}$/.test(afm)){
       showToast('Το ΑΦΜ πρέπει να έχει ακριβώς 9 ψηφία.');
-      return;
-    }
-    if(!contact.trim()){
-      showToast('Συμπλήρωσε στοιχεία επικοινωνίας.');
       return;
     }
     if(!desc.trim()){
