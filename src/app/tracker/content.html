@@ -231,8 +231,13 @@
     margin-top:6px; font-size:12.5px; color:var(--partial);
     background:var(--partial-bg); border-radius:5px; padding:5px 8px; display:inline-block;
   }
-  .entry-partial-note .partial-note-line{margin-bottom:3px;}
+  .entry-partial-note .partial-note-line{margin-bottom:3px; display:flex; align-items:flex-start; justify-content:space-between; gap:8px;}
   .entry-partial-note .partial-note-line:last-child{margin-bottom:0;}
+  .partial-note-actions{display:flex; gap:2px; flex-shrink:0;}
+  .icon-btn{background:transparent; border:none; cursor:pointer; font-size:12px; color:var(--partial); opacity:.65; padding:0 3px; line-height:1.5;}
+  .icon-btn:hover{opacity:1;}
+  .entry-partial-note .partial-note-line.partial-note-editing{display:block;}
+  .partial-note-editing textarea{width:100%; min-height:44px; border:1px solid var(--partial-line); border-radius:6px; padding:6px 8px; font-family:inherit; font-size:12.5px; resize:vertical; background:var(--surface); color:var(--ink);}
   .entry-completed-date{margin-top:5px; font-size:12px; color:var(--done);}
   .entry-deleted-note{margin-top:5px; font-size:12px; color:var(--danger);}
   .entry-contact-note{margin-top:8px; font-size:10.5px; color:var(--ink-soft); font-style:italic;}
@@ -462,6 +467,12 @@ const state = {
   permanentDeleteProjectId: null,
   editingPartialId: null,
   editingPartialProjectId: null,
+  editingPartialNoteId: null,       // entry id whose individual partial-note is being edited
+  editingPartialNoteProjectId: null,
+  editingPartialNoteIndex: null,    // index within e.partialNotes
+  deletingPartialNoteId: null,      // entry id whose individual partial-note delete-confirm is showing
+  deletingPartialNoteProjectId: null,
+  deletingPartialNoteIndex: null,
   editingEntryId: null,
   editingEntryProjectId: null,
   toast: null,
@@ -1202,6 +1213,34 @@ async function markPartial(id, note, projectId){
   if(!ok) showToast('Η αποθήκευση απέτυχε — δοκίμασε ξανά.');
 }
 
+async function savePartialNoteEdit(id, projectId, index, newText){
+  const list = state.entries[projectId] || [];
+  const e = list.find(x=>x.id===id);
+  if(!e) return;
+  if(!e.partialNotes) e.partialNotes = [];
+  if(!e.partialNotes[index]) return;
+  e.partialNotes[index] = {...e.partialNotes[index], text: newText.trim()};
+  state.editingPartialNoteId = null;
+  state.editingPartialNoteProjectId = null;
+  state.editingPartialNoteIndex = null;
+  render();
+  const ok = await patchEntry(id, {partialNotes: e.partialNotes});
+  if(!ok) showToast('Η αποθήκευση απέτυχε — δοκίμασε ξανά.');
+}
+
+async function deletePartialNote(id, projectId, index){
+  const list = state.entries[projectId] || [];
+  const e = list.find(x=>x.id===id);
+  if(!e || !e.partialNotes) return;
+  e.partialNotes.splice(index, 1);
+  state.deletingPartialNoteId = null;
+  state.deletingPartialNoteProjectId = null;
+  state.deletingPartialNoteIndex = null;
+  render();
+  const ok = await patchEntry(id, {partialNotes: e.partialNotes});
+  if(!ok) showToast('Η αποθήκευση απέτυχε — δοκίμασε ξανά.');
+}
+
 async function revertToPending(id, projectId){
   const list = state.entries[projectId] || [];
   const e = list.find(x=>x.id===id);
@@ -1275,6 +1314,8 @@ function switchProject(id){
   state.permanentDeleteProjectId = null;
   state.editingPartialId = null;
   state.editingPartialProjectId = null;
+  state.editingPartialNoteId = null; state.editingPartialNoteProjectId = null; state.editingPartialNoteIndex = null;
+  state.deletingPartialNoteId = null; state.deletingPartialNoteProjectId = null; state.deletingPartialNoteIndex = null;
   flushPendingMembershipChecklist();
   state.membershipCompleteId = null;
   state.viewSearchQuery = '';
@@ -1295,6 +1336,8 @@ function goToPage(page){
   state.permanentDeleteProjectId = null;
   state.editingPartialId = null;
   state.editingPartialProjectId = null;
+  state.editingPartialNoteId = null; state.editingPartialNoteProjectId = null; state.editingPartialNoteIndex = null;
+  state.deletingPartialNoteId = null; state.deletingPartialNoteProjectId = null; state.deletingPartialNoteIndex = null;
   flushPendingMembershipChecklist();
   state.membershipCompleteId = null;
   if(page === 'view'){
@@ -1376,14 +1419,41 @@ function renderEntryActions(e, projectId){
   `;
 }
 
-function renderPartialNotes(e){
+function renderPartialNotes(e, projectId){
   const notes = (e.partialNotes && e.partialNotes.length)
     ? e.partialNotes
     : (e.partialNote ? [{date: e.date, text: e.partialNote}] : []);
   if(!notes.length) return '';
-  return `<div class="entry-partial-note">${notes.map(n =>
-    `<div class="partial-note-line">${toDisplayDate(n.date)}: ${esc(n.text)}</div>`
-  ).join('')}</div>`;
+  return `<div class="entry-partial-note">${notes.map((n, idx) => {
+    const isEditing = state.editingPartialNoteId === e.id && state.editingPartialNoteProjectId === projectId && state.editingPartialNoteIndex === idx;
+    const isDeleting = state.deletingPartialNoteId === e.id && state.deletingPartialNoteProjectId === projectId && state.deletingPartialNoteIndex === idx;
+    if(isEditing){
+      return `<div class="partial-note-line partial-note-editing">
+        <textarea id="partial-note-edit-input" rows="2">${esc(n.text)}</textarea>
+        <div style="display:flex; gap:6px; margin-top:4px;">
+          <button class="btn btn-sm btn-partial" data-action="partial-note-save" data-id="${e.id}" data-project="${projectId}" data-index="${idx}">Αποθήκευση</button>
+          <button class="btn btn-sm btn-quiet" data-action="partial-note-edit-cancel">Άκυρο</button>
+        </div>
+      </div>`;
+    }
+    if(isDeleting){
+      return `<div class="partial-note-line">
+        <span>${toDisplayDate(n.date)}: ${esc(n.text)}</span>
+        <div style="margin-top:4px;">
+          <span style="opacity:.8;">Διαγραφή σχολίου;</span>
+          <button class="btn btn-sm btn-danger" data-action="partial-note-delete-confirm" data-id="${e.id}" data-project="${projectId}" data-index="${idx}">Ναι</button>
+          <button class="btn btn-sm btn-quiet" data-action="partial-note-delete-cancel">Άκυρο</button>
+        </div>
+      </div>`;
+    }
+    return `<div class="partial-note-line">
+      <span>${toDisplayDate(n.date)}: ${esc(n.text)}</span>
+      <span class="partial-note-actions">
+        <button class="icon-btn" data-action="partial-note-edit-open" data-id="${e.id}" data-project="${projectId}" data-index="${idx}" title="Επεξεργασία σχολίου">✎</button>
+        <button class="icon-btn" data-action="partial-note-delete-ask" data-id="${e.id}" data-project="${projectId}" data-index="${idx}" title="Διαγραφή σχολίου">✕</button>
+      </span>
+    </div>`;
+  }).join('')}</div>`;
 }
 
 function attachmentViewUrl(e){
@@ -1399,7 +1469,7 @@ function renderEntry(e, projectId, priority, opts={}){
   const cls = e.status === 'partial' ? 'partial' : (e.status === 'done' ? 'done' : (e.status === 'deleted' ? 'deleted' : ''));
   let extra = '';
   if(e.status === 'partial'){
-    extra = renderPartialNotes(e);
+    extra = renderPartialNotes(e, projectId);
   }
   if(e.status === 'done'){
     if(e.type === 'membership'){
@@ -1547,7 +1617,7 @@ function renderSearchResult(e, proj, priority){
   const cls = e.status === 'partial' ? 'partial' : (e.status === 'done' ? 'done' : '');
   let extra = '';
   if(e.status === 'partial'){
-    extra = renderPartialNotes(e);
+    extra = renderPartialNotes(e, proj.id);
   }
   if(e.status === 'done'){
     if(e.type === 'membership'){
@@ -2425,6 +2495,7 @@ document.addEventListener('click', async (ev)=>{
     const action = btn.dataset.action;
     const id = btn.dataset.id;
     const pid = btn.dataset.project;
+    const idx = btn.dataset.index !== undefined ? parseInt(btn.dataset.index, 10) : null;
     if(action==='export-xlsx'){ ev.preventDefault(); exportXlsx(btn.dataset.target); return; }
     if(action==='download-template'){ downloadImportTemplate(); return; }
     if(action==='print-view'){ printCurrentPending(); return; }
@@ -2438,6 +2509,8 @@ document.addEventListener('click', async (ev)=>{
       state.deletingId = null; state.deletingProjectId = null;
       state.editingEntryId = null; state.editingEntryProjectId = null;
       state.membershipCompleteId = null;
+      state.editingPartialNoteId = null; state.editingPartialNoteProjectId = null; state.editingPartialNoteIndex = null;
+      state.deletingPartialNoteId = null; state.deletingPartialNoteProjectId = null; state.deletingPartialNoteIndex = null;
       render();
     }
     else if(action==='partial-cancel'){ state.editingPartialId = null; state.editingPartialProjectId = null; render(); }
@@ -2447,6 +2520,39 @@ document.addEventListener('click', async (ev)=>{
       if(!note.trim()){ showToast('Γράψε τι ακριβώς έγινε μερικώς.'); return; }
       markPartial(id, note, pid);
     }
+    else if(action==='partial-note-edit-open'){
+      state.editingPartialNoteId = id; state.editingPartialNoteProjectId = pid; state.editingPartialNoteIndex = idx;
+      state.deletingPartialNoteId = null; state.deletingPartialNoteProjectId = null; state.deletingPartialNoteIndex = null;
+      state.editingPartialId = null; state.editingPartialProjectId = null;
+      state.deletingId = null; state.deletingProjectId = null;
+      state.editingEntryId = null; state.editingEntryProjectId = null;
+      state.membershipCompleteId = null;
+      render();
+    }
+    else if(action==='partial-note-edit-cancel'){
+      state.editingPartialNoteId = null; state.editingPartialNoteProjectId = null; state.editingPartialNoteIndex = null;
+      render();
+    }
+    else if(action==='partial-note-save'){
+      const ta = document.getElementById('partial-note-edit-input');
+      const text = ta ? ta.value : '';
+      if(!text.trim()){ showToast('Το σχόλιο δεν μπορεί να είναι κενό — διάγραψέ το αν θες να το αφαιρέσεις.'); return; }
+      savePartialNoteEdit(id, pid, idx, text);
+    }
+    else if(action==='partial-note-delete-ask'){
+      state.deletingPartialNoteId = id; state.deletingPartialNoteProjectId = pid; state.deletingPartialNoteIndex = idx;
+      state.editingPartialNoteId = null; state.editingPartialNoteProjectId = null; state.editingPartialNoteIndex = null;
+      state.editingPartialId = null; state.editingPartialProjectId = null;
+      state.deletingId = null; state.deletingProjectId = null;
+      state.editingEntryId = null; state.editingEntryProjectId = null;
+      state.membershipCompleteId = null;
+      render();
+    }
+    else if(action==='partial-note-delete-cancel'){
+      state.deletingPartialNoteId = null; state.deletingPartialNoteProjectId = null; state.deletingPartialNoteIndex = null;
+      render();
+    }
+    else if(action==='partial-note-delete-confirm') deletePartialNote(id, pid, idx);
     else if(action==='revert') revertToPending(id, pid);
     else if(action==='revert-deleted') revertDeleted(id, pid);
     else if(action==='delete-ask'){
@@ -2454,6 +2560,8 @@ document.addEventListener('click', async (ev)=>{
       state.editingPartialId = null; state.editingPartialProjectId = null;
       state.editingEntryId = null; state.editingEntryProjectId = null;
       state.membershipCompleteId = null;
+      state.editingPartialNoteId = null; state.editingPartialNoteProjectId = null; state.editingPartialNoteIndex = null;
+      state.deletingPartialNoteId = null; state.deletingPartialNoteProjectId = null; state.deletingPartialNoteIndex = null;
       render();
     }
     else if(action==='delete-cancel'){ state.deletingId = null; state.deletingProjectId = null; render(); }
@@ -2469,6 +2577,8 @@ document.addEventListener('click', async (ev)=>{
       state.editingPartialId = null; state.editingPartialProjectId = null;
       state.editingEntryId = null; state.editingEntryProjectId = null;
       state.membershipCompleteId = null;
+      state.editingPartialNoteId = null; state.editingPartialNoteProjectId = null; state.editingPartialNoteIndex = null;
+      state.deletingPartialNoteId = null; state.deletingPartialNoteProjectId = null; state.deletingPartialNoteIndex = null;
       render();
     }
     else if(action==='permanent-delete-cancel'){ state.permanentDeleteId = null; state.permanentDeleteProjectId = null; render(); }
@@ -2480,6 +2590,8 @@ document.addEventListener('click', async (ev)=>{
       state.editingPartialId = null; state.editingPartialProjectId = null;
       state.editingEntryId = null; state.editingEntryProjectId = null;
       state.permanentDeleteId = null; state.permanentDeleteProjectId = null;
+      state.editingPartialNoteId = null; state.editingPartialNoteProjectId = null; state.editingPartialNoteIndex = null;
+      state.deletingPartialNoteId = null; state.deletingPartialNoteProjectId = null; state.deletingPartialNoteIndex = null;
       render();
     }
     else if(action==='membership-complete-cancel'){
@@ -2503,6 +2615,8 @@ document.addEventListener('click', async (ev)=>{
       state.editingPartialId = null; state.editingPartialProjectId = null;
       state.deletingId = null; state.deletingProjectId = null;
       state.membershipCompleteId = null;
+      state.editingPartialNoteId = null; state.editingPartialNoteProjectId = null; state.editingPartialNoteIndex = null;
+      state.deletingPartialNoteId = null; state.deletingPartialNoteProjectId = null; state.deletingPartialNoteIndex = null;
       render();
     }
     else if(action==='edit-cancel'){ state.editingEntryId = null; state.editingEntryProjectId = null; render(); }
@@ -2872,7 +2986,7 @@ loadUsers();
 setInterval(()=>{
   if(document.hidden) return;
   if(state.page === 'home') return;
-  if(state.editingEntryId || state.editingPartialId || state.deletingId || state.membershipCompleteId) return;
+  if(state.editingEntryId || state.editingPartialId || state.deletingId || state.membershipCompleteId || state.editingPartialNoteId || state.deletingPartialNoteId) return;
   Object.keys(state.entries).forEach(pid => {
     if(state.entries[pid] !== undefined) refreshEntries(pid);
   });
