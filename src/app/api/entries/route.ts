@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
       fileUrl: body.fileUrl || null,
       fileName: body.fileName || null,
       isVulnerable: type === "membership" ? !!body.isVulnerable : false,
+      isDistrictHeating: type === "membership" ? !!body.isDistrictHeating : false,
       createdByEmail: session?.email ?? null,
     },
   });

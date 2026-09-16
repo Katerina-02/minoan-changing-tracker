@@ -36,6 +36,7 @@ model Entry {
   fileName            String?
   membershipChecklist Json?     @default("{}")
   isVulnerable        Boolean   @default(false) // "νέο μέλος" only — ευάλωτος καταναλωτής
+  isDistrictHeating   Boolean   @default(false) // "νέο μέλος" only — τηλεθέρμανση
   createdByEmail      String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
