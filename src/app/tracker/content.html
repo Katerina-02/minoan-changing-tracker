@@ -468,6 +468,7 @@ const state = {
   entries: {},                // projectId -> array | undefined (not loaded yet); membership requests live under MEMBERSHIP_BUCKET
   loading: {},
   viewMenuOpen: false,        // "Προβολή αιτημάτων" dropdown (Αιτήματα αλλαγών / Αιτήματα νέων μελών)
+  profileMenuOpen: false,     // profile dropdown (Αλλαγή κωδικού / Αποσύνδεση)
   membershipCompleteId: null, // id of the membership request currently showing the "Ολοκλήρωση ένταξης" panel
   contacts: undefined,        // array | undefined (not loaded yet)
   users: undefined,           // email -> name map | undefined (not loaded yet)
@@ -1375,6 +1376,7 @@ function switchProject(id){
 function goToPage(page){
   state.page = page;
   state.viewMenuOpen = false;
+  state.profileMenuOpen = false;
   state.deletingId = null;
   state.deletingProjectId = null;
   state.permanentDeleteId = null;
@@ -2562,11 +2564,16 @@ function render(){
         <button class="navbtn ${state.page==='search'?'active':''}" data-action="goto" data-page="search">Αναζήτηση</button>
         <button class="navbtn ${state.page==='contacts'?'active':''}" data-action="goto" data-page="contacts">Κατάλογος επικοινωνίας</button>
         <button class="navbtn ${state.page==='stats'?'active':''}" data-action="goto" data-page="stats">Στατιστικά</button>
-        <button class="navbtn ${state.page==='account'?'active':''}" data-action="goto" data-page="account">Αλλαγή κωδικού</button>
-        <span class="user-chip">${esc(CURRENT_USER.name || CURRENT_USER.email)}</span>
-        <form class="logout-form" method="POST" action="/api/logout">
-          <button type="submit" class="navbtn">Αποσύνδεση</button>
-        </form>
+        <div class="navbtn-dropdown-wrap" style="margin-left:auto;">
+          <button class="navbtn ${state.page==='account'?'active':''}" data-action="toggle-profile-menu">${esc(CURRENT_USER.name || CURRENT_USER.email)} ▾</button>
+          ${state.profileMenuOpen ? `
+            <div class="navbtn-dropdown">
+              <button data-action="goto" data-page="account">Αλλαγή κωδικού</button>
+              <form class="logout-form" method="POST" action="/api/logout">
+                <button type="submit">Αποσύνδεση</button>
+              </form>
+            </div>` : ''}
+        </div>
       </div>
       <div class="page">
         ${state.page === 'home' ? renderHome() : state.page === 'view' ? renderView() : state.page === 'membershipView' ? renderMembershipView() : state.page === 'search' ? renderSearch() : state.page === 'contacts' ? renderContacts() : state.page === 'account' ? renderAccount() : renderStats()}
@@ -2704,7 +2711,8 @@ document.addEventListener('click', async (ev)=>{
       if(!allChecked){ showToast('Πρέπει να επιβεβαιώσεις όλες τις προϋποθέσεις.'); return; }
       completeMembership(id, enrolledProjectId);
     }
-    else if(action==='toggle-view-menu'){ state.viewMenuOpen = !state.viewMenuOpen; render(); }
+    else if(action==='toggle-view-menu'){ state.viewMenuOpen = !state.viewMenuOpen; state.profileMenuOpen = false; render(); }
+    else if(action==='toggle-profile-menu'){ state.profileMenuOpen = !state.profileMenuOpen; state.viewMenuOpen = false; render(); }
     else if(action==='set-home-form-type'){ state.homeFormType = btn.dataset.type; render(); }
     else if(action==='edit-open'){
       state.editingEntryId = id; state.editingEntryProjectId = pid;
