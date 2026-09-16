@@ -33,7 +33,10 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const type = body.type === "membership" ? "membership" : "change";
 
-  const required = ["id", "date", "lastName", "firstName", "supplyNumber", "description"];
+  // Only id/date are truly required at the API level. The UI prompts the
+  // user to confirm before submitting with a missing name/supply
+  // number/description, so those are allowed through here as empty values.
+  const required = ["id", "date"];
   for (const field of required) {
     if (!body[field]) {
       return NextResponse.json({ error: `${field} is required` }, { status: 400 });
@@ -49,13 +52,13 @@ export async function POST(request: NextRequest) {
       type,
       projectId: type === "membership" ? null : body.projectId,
       date: new Date(body.date),
-      lastName: body.lastName,
-      firstName: body.firstName,
+      lastName: body.lastName || "",
+      firstName: body.firstName || "",
       afm: body.afm || null,
       supplyNumber: body.supplyNumber || null,
       contactInfo: body.contactInfo || null,
       contactPersonName: body.contactPersonName || null,
-      description: body.description,
+      description: body.description || "",
       status: "pending",
       partialNotes: [],
       fileUrl: body.fileUrl || null,

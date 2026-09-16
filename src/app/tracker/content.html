@@ -117,6 +117,7 @@
     resize:vertical;
   }
   .field input:focus, .field textarea:focus{outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent);}
+  .field input.input-error, .field textarea.input-error, .field select.input-error{border-color:#dc2626; box-shadow:0 0 0 2px rgba(220,38,38,.15);}
   .reg-row2{display:flex; gap:14px;}
   .reg-row2 .field{flex:1;}
 
@@ -854,6 +855,32 @@ async function handleImportFile(file){
   }
 
   showToast(`Εισήχθησαν ${imported} αλλαγές${skipped ? ` — παραβλέφθηκαν ${skipped} γραμμές με λείπον υποχρεωτικό στοιχείο` : ''}.`);
+}
+
+// A toast that doesn't go through render() — render() rebuilds the whole
+// page from `state`, which would wipe uncontrolled form inputs (like the
+// registration form) that aren't tracked in state. Used wherever a toast
+// needs to appear without disturbing whatever the user is mid-typing.
+function flashToast(msg){
+  let el = document.getElementById('inline-flash-toast');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'inline-flash-toast';
+    el.className = 'toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.display = 'block';
+  clearTimeout(flashToast._t);
+  flashToast._t = setTimeout(()=>{ el.style.display = 'none'; }, 2600);
+}
+
+function markFieldErrors(ids){
+  ids.forEach(fid => { const el = document.getElementById(fid); if(el) el.classList.add('input-error'); });
+}
+
+function clearFieldErrors(ids){
+  ids.forEach(fid => { const el = document.getElementById(fid); if(el) el.classList.remove('input-error'); });
 }
 
 function showToast(msg){
@@ -2686,21 +2713,31 @@ document.addEventListener('click', async (ev)=>{
     const attachmentFile = (attachmentInput && attachmentInput.files && attachmentInput.files[0]) || null;
     const vulnerableEl = document.getElementById('in-vulnerable');
     const isVulnerable = !!(vulnerableEl && vulnerableEl.checked);
-    if(!supplyNumber.trim()){
-      showToast('Συμπλήρωσε τον αριθμό παροχής.');
-      return;
-    }
-    if(!lastName.trim() || !firstName.trim()){
-      showToast('Συμπλήρωσε επώνυμο και όνομα.');
-      return;
-    }
+
+    const requiredFieldIds = ['in-supply', 'in-lastname', 'in-firstname', 'in-desc'];
+    clearFieldErrors(requiredFieldIds);
+
     if(afm && !/^\d{9}$/.test(afm)){
-      showToast('Το ΑΦΜ πρέπει να έχει ακριβώς 9 ψηφία.');
+      markFieldErrors(['in-afm']);
+      document.getElementById('in-afm').focus();
+      flashToast('Το ΑΦΜ πρέπει να έχει ακριβώς 9 ψηφία.');
       return;
     }
-    if(!desc.trim()){
-      showToast(isMembership ? 'Συμπλήρωσε σημειώσεις για το αίτημα.' : 'Συμπλήρωσε τι αλλαγή θέλει.');
-      return;
+    clearFieldErrors(['in-afm']);
+
+    const missing = [];
+    if(!supplyNumber.trim()) missing.push({id:'in-supply', label:'Αριθμός παροχής'});
+    if(!lastName.trim()) missing.push({id:'in-lastname', label:'Επώνυμο'});
+    if(!firstName.trim()) missing.push({id:'in-firstname', label:'Όνομα'});
+    if(!desc.trim()) missing.push({id:'in-desc', label: isMembership ? 'Σημειώσεις αιτήματος' : 'Περιγραφή αλλαγής'});
+
+    if(missing.length){
+      markFieldErrors(missing.map(f=>f.id));
+      document.getElementById(missing[0].id).focus();
+      const proceed = window.confirm(
+        `Λείπει: ${missing.map(f=>f.label).join(', ')}.\n\nΘέλεις να συνεχίσεις την αποθήκευση χωρίς αυτό το στοιχείο;`
+      );
+      if(!proceed) return;
     }
     const bucketId = isMembership ? MEMBERSHIP_BUCKET : projectId;
     if(!isMembership) state.homeSelectedProject = projectId;
@@ -2721,6 +2758,7 @@ document.addEventListener('click', async (ev)=>{
       const dw = document.getElementById('dup-warning'); if(dw) dw.style.display='none';
       const att = document.getElementById('in-attachment'); if(att) att.value='';
       const vu = document.getElementById('in-vulnerable'); if(vu) vu.checked = false;
+      clearFieldErrors(['in-supply', 'in-lastname', 'in-firstname', 'in-afm', 'in-desc']);
     }, 0);
     const {url: fileUrl, name: fileName} = await uploadAttachment(attachmentFile);
     const entrySaved = await addEntry(bucketId, formType, date, lastName, firstName, afm, supplyNumber, contact, contactName, desc, fileUrl, fileName, isVulnerable);
