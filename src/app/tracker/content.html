@@ -2807,6 +2807,12 @@ document.addEventListener('input', (ev)=>{
     const el = document.getElementById('in-contacts-search');
     if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
   }
+  if(ev.target.id === 'in-view-search'){
+    state.viewSearchQuery = ev.target.value;
+    render();
+    const el = document.getElementById('in-view-search');
+    if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  }
   if(ev.target.id === 'in-lastname' || ev.target.id === 'in-firstname'){
     updateSuggestions();
     updateDupWarning();
