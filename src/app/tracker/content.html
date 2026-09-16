@@ -59,7 +59,7 @@
 
   /* Top nav */
   .topnav{
-    display:flex; align-items:baseline; gap:22px;
+    display:flex; flex-wrap:wrap; align-items:baseline; gap:22px;
     padding:26px 24px 18px;
     border-bottom:1px solid var(--line);
   }
@@ -70,7 +70,12 @@
     padding:4px 2px 10px; border:none; border-bottom:2.5px solid transparent;
     background:transparent; color:var(--ink-soft);
     cursor:pointer;
+    white-space:nowrap; flex-shrink:0;
   }
+  /* Without this, the flex row can shrink a multi-word button (like
+     "Προβολή αιτημάτων ▾") down below its full-line width, wrapping it
+     onto two lines and knocking it out of line with the other nav items. */
+  .navbtn-dropdown-wrap{display:inline-flex; align-items:baseline; flex-shrink:0;}
   .navbtn.active{color:var(--ink); border-bottom-color:var(--accent);}
   .navbtn:hover:not(.active){color:var(--ink);}
   .user-chip{font-size:12px; color:var(--ink-soft); margin-left:14px; white-space:nowrap;}
