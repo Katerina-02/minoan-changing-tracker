@@ -38,7 +38,7 @@ export default async function LoginPage({
             }}
           />
           <h1 style={{ fontSize: 19, marginBottom: 4, fontFamily: "Georgia, serif" }}>
-            Αλλαγές παροχών
+            Σύστημα Διαχείρισης
           </h1>
           <div
             style={{
