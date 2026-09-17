@@ -443,14 +443,15 @@ const PROJECTS = [
 // requested. 'other' is special: it comes with a free-text field instead
 // of a fixed label.
 const CHANGE_TYPES = [
-  {id:'increase_kw', label:'Αύξηση kW'},
-  {id:'decrease_kw', label:'Μείωση kW'},
-  {id:'share_kw', label:'Διαμοιρασμός kW'},
-  {id:'transfer_kw', label:'Μεταφορά kW σε άλλη παροχή'},
-  {id:'change_address', label:'Αλλαγή διεύθυνσης'},
-  {id:'change_supply', label:'Αλλαγή παροχής'},
-  {id:'remove_supply', label:'Αφαίρεση παροχής'},
-  {id:'other', label:'Άλλο'},
+  {id:'increase_kw', label:'ΑΥΞΗΣΗ KW'},
+  {id:'decrease_kw', label:'ΜΕΙΩΣΗ KW'},
+  {id:'share_kw', label:'ΔΙΑΜΟΙΡΑΣΜΟΣ KW'},
+  {id:'transfer_kw_to', label:'ΜΕΤΑΦΟΡΑ KW ΣΕ ΑΛΛΗ ΠΑΡΟΧΗ'},
+  {id:'transfer_kw_from', label:'ΜΕΤΑΦΟΡΑ KW ΑΠΟ ΑΛΛΗ ΠΑΡΟΧΗ'},
+  {id:'change_address', label:'ΑΛΛΑΓΗ ΔΙΕΥΘΥΝΣΗΣ'},
+  {id:'change_supply', label:'ΑΛΛΑΓΗ ΑΡ. ΠΑΡΟΧΗΣ'},
+  {id:'remove_supply', label:'ΑΦΑΙΡΕΣΗ ΠΑΡΟΧΗΣ'},
+  {id:'other', label:'ΑΛΛΟ'},
 ];
 
 // Renders an entry's selected change types as a display string, e.g.
@@ -460,10 +461,17 @@ function changeTypesLabel(e){
   const types = e.changeTypes || [];
   if(!types.length) return '';
   return types.map(id => {
-    if(id === 'other') return e.changeTypeOther ? e.changeTypeOther.trim() : 'Άλλο';
+    if(id === 'other') return e.changeTypeOther ? e.changeTypeOther.trim() : 'ΑΛΛΟ';
     const t = CHANGE_TYPES.find(c => c.id === id);
     return t ? t.label : id;
   }).filter(Boolean).join(', ');
+}
+
+// "change" view — multi-select filter by change type (checking more than
+// one widens the results, matching ANY of the selected types).
+function entryMatchesChangeTypeFilter(e){
+  if(!state.changeTypeFilter.length) return true;
+  return (e.changeTypes||[]).some(t => state.changeTypeFilter.includes(t));
 }
 
 const ALL_ID = 'all-projects';
@@ -528,6 +536,7 @@ const state = {
   mFilterVulnerable: false,
   mFilterHeating: false,
   mFilterPartial: false,
+  changeTypeFilter: [], // "change" view — selected change-type ids to filter by (OR'd together)
 };
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
@@ -1665,7 +1674,7 @@ function renderEntry(e, projectId, priority, opts={}){
                 <span>${esc(ct.label)}</span>
               </label>`).join('')}
           </div>
-          <input type="text" id="edit-changetype-other-text" placeholder="Περίγραψε το είδος αλλαγής" value="${esc(e.changeTypeOther||'')}" style="display:${(e.changeTypes||[]).includes('other')?'block':'none'}; margin-top:8px;">
+          <input type="text" id="edit-changetype-other-text" placeholder="Περίγραψε το είδος αλλαγής" value="${esc(e.changeTypeOther||'')}" style="display:${(e.changeTypes||[]).includes('other')?'block':'none'}; margin-top:8px; text-transform:uppercase;">
         </div>` : ''}
         <div class="field"><label>Περιγραφή αλλαγής</label><textarea id="edit-desc" rows="2">${esc(e.description)}</textarea></div>
         ${e.type === 'membership' ? `
@@ -2254,7 +2263,7 @@ function renderHome(){
                 <span>${esc(ct.label)}</span>
               </label>`).join('')}
           </div>
-          <input type="text" id="in-changetype-other-text" placeholder="Περίγραψε το είδος αλλαγής" style="display:none; margin-top:8px;">
+          <input type="text" id="in-changetype-other-text" placeholder="Περίγραψε το είδος αλλαγής" style="display:none; margin-top:8px; text-transform:uppercase;">
         </div>` : ''}
         <div class="field">
           <label for="in-desc">${isMembership ? 'Σημειώσεις αιτήματος' : 'Περιγραφή αλλαγής'}</label>
@@ -2301,6 +2310,20 @@ function renderViewFilters(searchLabel){
         <input type="date" id="in-view-date-to" value="${esc(state.viewDateTo)}">
       </div>
       ${(state.viewDateFrom || state.viewDateTo) ? `<button class="btn btn-sm btn-quiet" data-action="clear-view-dates" style="margin-bottom:1px;">Καθαρισμός ημερομηνιών</button>` : ''}
+    </div>`;
+}
+
+// "change" view only — lets picking one or more change types to narrow
+// the list to (checking more than one widens the match, it doesn't
+// require all of them).
+function renderChangeTypeFilters(){
+  return `
+    <div style="display:flex; gap:12px 16px; flex-wrap:wrap; align-items:center; margin:-8px 0 20px; font-size:13.5px;">
+      <span class="muted">Είδος αλλαγής:</span>
+      ${CHANGE_TYPES.map(ct => `
+        <label class="checkbox-row"><input type="checkbox" class="cf-changetype" value="${ct.id}" ${state.changeTypeFilter.includes(ct.id)?'checked':''}> ${esc(ct.label)}</label>
+      `).join('')}
+      ${state.changeTypeFilter.length ? `<button class="btn btn-sm btn-quiet" data-action="clear-changetype-filter">Καθαρισμός</button>` : ''}
     </div>`;
 }
 
@@ -2391,14 +2414,15 @@ function renderView(){
       mainHtml = `<div class="empty-state">Φόρτωση…</div>`;
     } else {
       const q = state.viewSearchQuery.trim().toLowerCase();
-      const hasFilter = !!q || !!state.viewDateFrom || !!state.viewDateTo;
+      const hasFilter = !!q || !!state.viewDateFrom || !!state.viewDateTo || !!state.changeTypeFilter.length;
+      const matches = e => entryMatchesQuery(e, q) && entryMatchesChangeTypeFilter(e);
 
       let combinedPending = [];
       PROJECTS.forEach(p => {
         getPendingSorted(p.id).forEach(e => combinedPending.push({e, projectId: p.id}));
       });
       combinedPending.sort((a,b)=> a.e.date < b.e.date ? -1 : a.e.date > b.e.date ? 1 : 0);
-      const pendingWithPriority = combinedPending.map((row,i) => ({...row, priority: i+1})).filter(({e}) => entryMatchesQuery(e, q));
+      const pendingWithPriority = combinedPending.map((row,i) => ({...row, priority: i+1})).filter(({e}) => matches(e));
 
       let displayList = pendingWithPriority;
       if(state.viewSort === 'alpha'){
@@ -2411,8 +2435,8 @@ function renderView(){
       let combinedDeleted = [];
       PROJECTS.forEach(p => {
         (state.entries[p.id]||[]).forEach(e => {
-          if(e.status==='done' && entryMatchesQuery(e,q)) combinedDone.push({e, projectId:p.id});
-          if(e.status==='deleted' && entryMatchesQuery(e,q)) combinedDeleted.push({e, projectId:p.id});
+          if(e.status==='done' && matches(e)) combinedDone.push({e, projectId:p.id});
+          if(e.status==='deleted' && matches(e)) combinedDeleted.push({e, projectId:p.id});
         });
       });
       combinedDone.sort((a,b)=> (b.e.completedDate||'').localeCompare(a.e.completedDate||''));
@@ -2438,6 +2462,7 @@ function renderView(){
         <div class="project-sub">${combinedPending.length} εκκρεμότητ${combinedPending.length===1?'α':'ες'}${partialCount?` · ${partialCount} μερικ${partialCount===1?'ή':'ές'}`:''} · ${combinedDone.length} ολοκληρωμέν${combinedDone.length===1?'η':'ες'}${combinedDeleted.length ? ` · ${combinedDeleted.length} διαγραμμέν${combinedDeleted.length===1?'η':'ες'}` : ''}</div>
 
         ${renderViewFilters('Αναζήτηση σε όλα τα έργα')}
+        ${renderChangeTypeFilters()}
 
         <section class="list-section">
           <div class="section-head">
@@ -2469,10 +2494,11 @@ function renderView(){
     mainHtml = `<div class="empty-state">Φόρτωση…</div>`;
   } else {
     const q = state.viewSearchQuery.trim().toLowerCase();
-    const hasFilter = !!q || !!state.viewDateFrom || !!state.viewDateTo;
+    const hasFilter = !!q || !!state.viewDateFrom || !!state.viewDateTo || !!state.changeTypeFilter.length;
+    const matches = e => entryMatchesQuery(e, q) && entryMatchesChangeTypeFilter(e);
 
     const pending = getPendingSorted(state.currentProject);
-    const pendingWithPriority = pending.map((e,i) => ({e, priority: i+1})).filter(({e}) => entryMatchesQuery(e, q));
+    const pendingWithPriority = pending.map((e,i) => ({e, priority: i+1})).filter(({e}) => matches(e));
 
     let displayList = pendingWithPriority;
     if(state.viewSort === 'alpha'){
@@ -2481,8 +2507,8 @@ function renderView(){
       displayList = [...pendingWithPriority].reverse();
     }
 
-    const done = loaded.filter(e=>e.status==='done' && entryMatchesQuery(e, q)).sort((a,b)=> (b.completedDate||'').localeCompare(a.completedDate||''));
-    const deleted = loaded.filter(e=>e.status==='deleted' && entryMatchesQuery(e, q)).sort((a,b)=> (b.deletedDate||'').localeCompare(a.deletedDate||''));
+    const done = loaded.filter(e=>e.status==='done' && matches(e)).sort((a,b)=> (b.completedDate||'').localeCompare(a.completedDate||''));
+    const deleted = loaded.filter(e=>e.status==='deleted' && matches(e)).sort((a,b)=> (b.deletedDate||'').localeCompare(a.deletedDate||''));
 
     const pendingHtml = displayList.length
       ? displayList.map(({e, priority}) => renderEntry(e, state.currentProject, priority)).join('')
@@ -2504,6 +2530,7 @@ function renderView(){
       <div class="project-sub">${pending.length} εκκρεμότητ${pending.length===1?'α':'ες'}${partialCount?` · ${partialCount} μερικ${partialCount===1?'ή':'ές'}`:''} · ${done.length} ολοκληρωμέν${done.length===1?'η':'ες'}${deleted.length ? ` · ${deleted.length} διαγραμμέν${deleted.length===1?'η':'ες'}` : ''}</div>
 
       ${renderViewFilters('Αναζήτηση σε αυτό το έργο')}
+      ${renderChangeTypeFilters()}
 
       <section class="list-section">
         <div class="section-head">
@@ -2828,7 +2855,7 @@ document.addEventListener('click', async (ev)=>{
       const changeTypeCbs = document.querySelectorAll('.edit-changetype-cb');
       if(changeTypeCbs.length){
         fields.changeTypes = [...changeTypeCbs].filter(cb=>cb.checked).map(cb=>cb.value);
-        fields.changeTypeOther = fields.changeTypes.includes('other') ? (document.getElementById('edit-changetype-other-text')?.value||'').trim() : '';
+        fields.changeTypeOther = fields.changeTypes.includes('other') ? (document.getElementById('edit-changetype-other-text')?.value||'').trim().toUpperCase() : '';
       }
       if(attachmentFile){
         const {url: fileUrl, name: fileName} = await uploadAttachment(attachmentFile);
@@ -2848,6 +2875,10 @@ document.addEventListener('click', async (ev)=>{
     else if(action==='clear-view-dates'){
       state.viewDateFrom = '';
       state.viewDateTo = '';
+      render();
+    }
+    else if(action==='clear-changetype-filter'){
+      state.changeTypeFilter = [];
       render();
     }
     return;
@@ -2876,7 +2907,7 @@ document.addEventListener('click', async (ev)=>{
     const districtHeatingEl = document.getElementById('in-district-heating');
     const isDistrictHeating = !!(districtHeatingEl && districtHeatingEl.checked);
     const changeTypes = [...document.querySelectorAll('.in-changetype-cb:checked')].map(el=>el.value);
-    const changeTypeOther = changeTypes.includes('other') ? (document.getElementById('in-changetype-other-text')?.value || '').trim() : '';
+    const changeTypeOther = changeTypes.includes('other') ? (document.getElementById('in-changetype-other-text')?.value || '').trim().toUpperCase() : '';
 
     const requiredFieldIds = ['in-supply', 'in-lastname', 'in-firstname', 'in-desc'];
     clearFieldErrors(requiredFieldIds);
@@ -3059,6 +3090,15 @@ document.addEventListener('change', (ev)=>{
   }
   if(ev.target.id === 'mf-partial'){
     state.mFilterPartial = ev.target.checked;
+    render();
+  }
+  if(ev.target.classList.contains('cf-changetype')){
+    const val = ev.target.value;
+    if(ev.target.checked){
+      if(!state.changeTypeFilter.includes(val)) state.changeTypeFilter.push(val);
+    } else {
+      state.changeTypeFilter = state.changeTypeFilter.filter(v => v !== val);
+    }
     render();
   }
   if(ev.target.id === 'in-changetype-other-cb' || ev.target.id === 'edit-changetype-other-cb'){
