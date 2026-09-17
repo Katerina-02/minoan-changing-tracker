@@ -23,6 +23,8 @@ const PATCHABLE_FIELDS = [
   "membershipChecklist",
   "isVulnerable",
   "isDistrictHeating",
+  "changeTypes",
+  "changeTypeOther",
 ] as const;
 
 export async function PATCH(

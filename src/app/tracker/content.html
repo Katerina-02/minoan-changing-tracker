@@ -439,6 +439,33 @@ const PROJECTS = [
   {id:'g-minoa-aroania',   letter:'Γ', name:'Γ ΜΙΝΩΑ ΑΡΟΑΝΙΑ',   color:'partial'},
 ];
 
+// "change" requests only — checkbox options for the kind of change being
+// requested. 'other' is special: it comes with a free-text field instead
+// of a fixed label.
+const CHANGE_TYPES = [
+  {id:'increase_kw', label:'Αύξηση kW'},
+  {id:'decrease_kw', label:'Μείωση kW'},
+  {id:'share_kw', label:'Διαμοιρασμός kW'},
+  {id:'transfer_kw', label:'Μεταφορά kW σε άλλη παροχή'},
+  {id:'change_address', label:'Αλλαγή διεύθυνσης'},
+  {id:'change_supply', label:'Αλλαγή παροχής'},
+  {id:'remove_supply', label:'Αφαίρεση παροχής'},
+  {id:'other', label:'Άλλο'},
+];
+
+// Renders an entry's selected change types as a display string, e.g.
+// "Αύξηση kW, Μεταφορά kW σε άλλη παροχή" — 'other' shows the free-text
+// the user typed in place of the generic "Άλλο" label.
+function changeTypesLabel(e){
+  const types = e.changeTypes || [];
+  if(!types.length) return '';
+  return types.map(id => {
+    if(id === 'other') return e.changeTypeOther ? e.changeTypeOther.trim() : 'Άλλο';
+    const t = CHANGE_TYPES.find(c => c.id === id);
+    return t ? t.label : id;
+  }).filter(Boolean).join(', ');
+}
+
 const ALL_ID = 'all-projects';
 // Membership ("νέο μέλος") requests aren't tied to a project. They're stored
 // under this pseudo-project key in state.entries so all the existing
@@ -729,6 +756,7 @@ function downloadReceipt(id, projectId){
     e.afm ? ['ΑΦΜ', e.afm] : null,
     ['Αριθμός παροχής', e.supplyNumber || '—'],
     ['Έργο', proj ? proj.name : ''],
+    (e.type !== 'membership' && changeTypesLabel(e)) ? ['Είδος αλλαγής', changeTypesLabel(e)] : null,
     ['Κατάσταση', STATUS_LABEL[e.status] || e.status],
     e.status === 'done' ? ['Ολοκληρώθηκε στις', toDisplayDate(e.completedDate)] : null,
   ].filter(Boolean).map(([label, value]) => `
@@ -931,6 +959,8 @@ function rowToEntry(row){
     membershipChecklist: row.membershipChecklist || {},
     isVulnerable: !!row.isVulnerable,
     isDistrictHeating: !!row.isDistrictHeating,
+    changeTypes: row.changeTypes || [],
+    changeTypeOther: row.changeTypeOther || '',
     createdByEmail: row.createdByEmail || null,
   };
 }
@@ -1106,7 +1136,7 @@ function currentEntries(){
   return state.entries[state.currentProject] || [];
 }
 
-async function addEntry(bucketId, type, date, lastName, firstName, afm, supplyNumber, contactInfo, contactPersonName, description, fileUrl, fileName, isVulnerable, isDistrictHeating){
+async function addEntry(bucketId, type, date, lastName, firstName, afm, supplyNumber, contactInfo, contactPersonName, description, fileUrl, fileName, isVulnerable, isDistrictHeating, changeTypes, changeTypeOther){
   if(state.entries[bucketId] === undefined){
     await loadEntries(bucketId);
   }
@@ -1119,7 +1149,9 @@ async function addEntry(bucketId, type, date, lastName, firstName, afm, supplyNu
     status: 'pending', partialNotes: [], completedDate: null,
     fileUrl: fileUrl || null, fileName: fileName || null, membershipChecklist: {},
     isVulnerable: isMembership ? !!isVulnerable : false,
-    isDistrictHeating: isMembership ? !!isDistrictHeating : false
+    isDistrictHeating: isMembership ? !!isDistrictHeating : false,
+    changeTypes: isMembership ? [] : (changeTypes || []),
+    changeTypeOther: isMembership ? '' : (changeTypeOther || '')
   };
   const list = state.entries[bucketId] || [];
   list.push(entry);
@@ -1134,7 +1166,8 @@ async function addEntry(bucketId, type, date, lastName, firstName, afm, supplyNu
         afm: entry.afm, supplyNumber: entry.supplyNumber, contactInfo: entry.contactInfo,
         contactPersonName: entry.contactPersonName, description: entry.description,
         fileUrl: entry.fileUrl, fileName: entry.fileName, isVulnerable: entry.isVulnerable,
-        isDistrictHeating: entry.isDistrictHeating
+        isDistrictHeating: entry.isDistrictHeating,
+        changeTypes: entry.changeTypes, changeTypeOther: entry.changeTypeOther
       })
     });
     return res.ok;
@@ -1616,6 +1649,18 @@ function renderEntry(e, projectId, priority, opts={}){
           <div class="field"><label>Στοιχεία επικοινωνίας <span style="font-weight:400; opacity:.75;">(προαιρετικό)</span></label><input type="text" id="edit-contact" value="${esc(e.contactInfo||'')}"></div>
           <div class="field"><label>Επικοινωνία με</label><input type="text" id="edit-contact-name" value="${esc(e.contactPersonName||'')}"></div>
         </div>
+        ${e.type !== 'membership' ? `
+        <div class="field">
+          <label>Είδος αλλαγής <span style="font-weight:400; opacity:.75;">(μπορείς να επιλέξεις παραπάνω από ένα)</span></label>
+          <div class="checkbox-group">
+            ${CHANGE_TYPES.map(ct => `
+              <label class="checkbox-row">
+                <input type="checkbox" class="edit-changetype-cb" value="${ct.id}" ${ct.id==='other' ? 'id="edit-changetype-other-cb"' : ''} ${(e.changeTypes||[]).includes(ct.id)?'checked':''}>
+                <span>${esc(ct.label)}</span>
+              </label>`).join('')}
+          </div>
+          <input type="text" id="edit-changetype-other-text" placeholder="Περίγραψε το είδος αλλαγής" value="${esc(e.changeTypeOther||'')}" style="display:${(e.changeTypes||[]).includes('other')?'block':'none'}; margin-top:8px;">
+        </div>` : ''}
         <div class="field"><label>Περιγραφή αλλαγής</label><textarea id="edit-desc" rows="2">${esc(e.description)}</textarea></div>
         ${e.type === 'membership' ? `
         <div class="field">
@@ -1658,7 +1703,7 @@ function renderEntry(e, projectId, priority, opts={}){
       </div>
       <div class="entry-body">
         <div class="entry-name">${renderName(e)}${e.status==='partial' ? '<span class="badge-partial">Μερική</span>' : ''}${staleBadge}${vulnerableBadge}${districtHeatingBadge}${projectBadge}</div>
-        <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', e.contactInfo ? esc(e.contactInfo) : '', e.createdByEmail ? `καταχωρήθηκε από ${esc(creatorLabel(e.createdByEmail))}` : ''].filter(Boolean).join(' · ')}</div>
+        <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', (e.type !== 'membership' && changeTypesLabel(e)) ? `Είδος: ${esc(changeTypesLabel(e))}` : '', e.contactInfo ? esc(e.contactInfo) : '', e.createdByEmail ? `καταχωρήθηκε από ${esc(creatorLabel(e.createdByEmail))}` : ''].filter(Boolean).join(' · ')}</div>
         <div class="entry-desc">${esc(e.description)}</div>
         ${renderAttachmentLink(e)}
         ${extra}
@@ -1710,7 +1755,7 @@ function renderSearchResult(e, proj, priority){
       </div>
       <div class="entry-body">
         <div class="entry-name">${renderName(e)}${isStale(e) ? `<span class="badge-partial" style="color:var(--mustard); background:var(--mustard-bg); border-color:var(--mustard);">⏳ ${monthsActive(e)} μήνες</span>` : ''}${vulnerableBadge}${districtHeatingBadge}</div>
-        <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', e.contactInfo ? esc(e.contactInfo) : '', e.createdByEmail ? `καταχωρήθηκε από ${esc(creatorLabel(e.createdByEmail))}` : ''].filter(Boolean).join(' · ')}</div>
+        <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', (e.type !== 'membership' && changeTypesLabel(e)) ? `Είδος: ${esc(changeTypesLabel(e))}` : '', e.contactInfo ? esc(e.contactInfo) : '', e.createdByEmail ? `καταχωρήθηκε από ${esc(creatorLabel(e.createdByEmail))}` : ''].filter(Boolean).join(' · ')}</div>
         <div style="margin:4px 0 6px;">
           <span class="badge-partial" style="color:${cw.dark}; background:${cw.soft}; border-color:${cw.c};">${esc(proj.name)}</span>
           <span class="badge-partial" style="margin-left:4px;">${STATUS_LABEL[e.status]}</span>
@@ -2191,6 +2236,18 @@ function renderHome(){
             <input type="text" id="in-contact-name" placeholder="π.χ. σύζυγος, πατέρας…">
           </div>
         </div>
+        ${!isMembership ? `
+        <div class="field">
+          <label>Είδος αλλαγής <span style="font-weight:400; opacity:.75;">(μπορείς να επιλέξεις παραπάνω από ένα)</span></label>
+          <div class="checkbox-group">
+            ${CHANGE_TYPES.map(ct => `
+              <label class="checkbox-row">
+                <input type="checkbox" class="in-changetype-cb" value="${ct.id}" ${ct.id==='other' ? 'id="in-changetype-other-cb"' : ''}>
+                <span>${esc(ct.label)}</span>
+              </label>`).join('')}
+          </div>
+          <input type="text" id="in-changetype-other-text" placeholder="Περίγραψε το είδος αλλαγής" style="display:none; margin-top:8px;">
+        </div>` : ''}
         <div class="field">
           <label for="in-desc">${isMembership ? 'Σημειώσεις αιτήματος' : 'Περιγραφή αλλαγής'}</label>
           <textarea id="in-desc" rows="3" placeholder="${isMembership ? 'π.χ. ενδιαφέρεται να μπει με τη νέα του παροχή' : 'π.χ. Αύξηση ισχύος κατά 1kW'}"></textarea>
@@ -2759,6 +2816,11 @@ document.addEventListener('click', async (ev)=>{
       };
       if(vulnerableEl) fields.isVulnerable = vulnerableEl.checked;
       if(districtHeatingEl) fields.isDistrictHeating = districtHeatingEl.checked;
+      const changeTypeCbs = document.querySelectorAll('.edit-changetype-cb');
+      if(changeTypeCbs.length){
+        fields.changeTypes = [...changeTypeCbs].filter(cb=>cb.checked).map(cb=>cb.value);
+        fields.changeTypeOther = fields.changeTypes.includes('other') ? (document.getElementById('edit-changetype-other-text')?.value||'').trim() : '';
+      }
       if(attachmentFile){
         const {url: fileUrl, name: fileName} = await uploadAttachment(attachmentFile);
         if(fileUrl){ fields.fileUrl = fileUrl; fields.fileName = fileName; }
@@ -2804,6 +2866,8 @@ document.addEventListener('click', async (ev)=>{
     const isVulnerable = !!(vulnerableEl && vulnerableEl.checked);
     const districtHeatingEl = document.getElementById('in-district-heating');
     const isDistrictHeating = !!(districtHeatingEl && districtHeatingEl.checked);
+    const changeTypes = [...document.querySelectorAll('.in-changetype-cb:checked')].map(el=>el.value);
+    const changeTypeOther = changeTypes.includes('other') ? (document.getElementById('in-changetype-other-text')?.value || '').trim() : '';
 
     const requiredFieldIds = ['in-supply', 'in-lastname', 'in-firstname', 'in-desc'];
     clearFieldErrors(requiredFieldIds);
@@ -2850,10 +2914,12 @@ document.addEventListener('click', async (ev)=>{
       const att = document.getElementById('in-attachment'); if(att) att.value='';
       const vu = document.getElementById('in-vulnerable'); if(vu) vu.checked = false;
       const dh = document.getElementById('in-district-heating'); if(dh) dh.checked = false;
+      document.querySelectorAll('.in-changetype-cb').forEach(cb => cb.checked = false);
+      const cto = document.getElementById('in-changetype-other-text'); if(cto){ cto.value=''; cto.style.display='none'; }
       clearFieldErrors(['in-supply', 'in-lastname', 'in-firstname', 'in-afm', 'in-desc']);
     }, 0);
     const {url: fileUrl, name: fileName} = await uploadAttachment(attachmentFile);
-    const entrySaved = await addEntry(bucketId, formType, date, lastName, firstName, afm, supplyNumber, contact, contactName, desc, fileUrl, fileName, isVulnerable, isDistrictHeating);
+    const entrySaved = await addEntry(bucketId, formType, date, lastName, firstName, afm, supplyNumber, contact, contactName, desc, fileUrl, fileName, isVulnerable, isDistrictHeating, changeTypes, changeTypeOther);
     const contactSaved = await addOrUpdateContact(lastName, firstName, afm, contact, contactName, isMembership ? null : projectId);
     state.submitting = false;
     if(entrySaved && contactSaved){
@@ -2985,6 +3051,15 @@ document.addEventListener('change', (ev)=>{
   if(ev.target.id === 'mf-partial'){
     state.mFilterPartial = ev.target.checked;
     render();
+  }
+  if(ev.target.id === 'in-changetype-other-cb' || ev.target.id === 'edit-changetype-other-cb'){
+    // Deliberately NOT calling render() — these checkboxes live in an
+    // uncontrolled form, and a re-render would wipe whatever else is typed.
+    const textInput = document.getElementById(ev.target.id === 'in-changetype-other-cb' ? 'in-changetype-other-text' : 'edit-changetype-other-text');
+    if(textInput){
+      textInput.style.display = ev.target.checked ? 'block' : 'none';
+      if(ev.target.checked) textInput.focus();
+    }
   }
   if(ev.target.id === 'in-project'){
     updateDupWarning();

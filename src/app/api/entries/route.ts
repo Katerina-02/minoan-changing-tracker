@@ -65,6 +65,8 @@ export async function POST(request: NextRequest) {
       fileName: body.fileName || null,
       isVulnerable: type === "membership" ? !!body.isVulnerable : false,
       isDistrictHeating: type === "membership" ? !!body.isDistrictHeating : false,
+      changeTypes: type === "change" && Array.isArray(body.changeTypes) ? body.changeTypes : [],
+      changeTypeOther: type === "change" ? body.changeTypeOther || null : null,
       createdByEmail: session?.email ?? null,
     },
   });

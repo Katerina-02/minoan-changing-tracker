@@ -37,6 +37,8 @@ model Entry {
   membershipChecklist Json?     @default("{}")
   isVulnerable        Boolean   @default(false) // "νέο μέλος" only — ευάλωτος καταναλωτής
   isDistrictHeating   Boolean   @default(false) // "νέο μέλος" only — τηλεθέρμανση
+  changeTypes         String[]  @default([]) // "change" only — είδος αλλαγής (πολλαπλή επιλογή)
+  changeTypeOther     String?   // free text for the "Άλλο" change type option
   createdByEmail      String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
