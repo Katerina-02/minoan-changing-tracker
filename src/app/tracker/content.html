@@ -729,7 +729,6 @@ function downloadReceipt(id, projectId){
     e.afm ? ['ΑΦΜ', e.afm] : null,
     ['Αριθμός παροχής', e.supplyNumber || '—'],
     ['Έργο', proj ? proj.name : ''],
-    ['Περιγραφή αιτήματος', e.description],
     ['Κατάσταση', STATUS_LABEL[e.status] || e.status],
     e.status === 'done' ? ['Ολοκληρώθηκε στις', toDisplayDate(e.completedDate)] : null,
   ].filter(Boolean).map(([label, value]) => `
@@ -751,7 +750,7 @@ function downloadReceipt(id, projectId){
 <body>
   <div class="r-ribbon"></div>
   <h1>Μινώα Ενεργειακή Κοινότητα</h1>
-  <div class="r-sub">Βεβαίωση καταχώρησης αιτήματος αλλαγής</div>
+  <div class="r-sub">Βεβαίωση καταχώρησης αιτήματος</div>
   <table>${rowsHtml}</table>
   <div class="r-footer">Το παρόν εκδόθηκε αυτόματα στις ${toDisplayDate(todayISO())} από το σύστημα διαχείρισης αιτημάτων της Κοινότητας.</div>
 </body></html>`;
