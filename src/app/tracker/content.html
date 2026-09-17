@@ -2328,7 +2328,7 @@ function renderChangeTypeFilters(){
   const n = state.changeTypeFilter.length;
   return `
     <div class="navbtn-dropdown-wrap changetype-filter-wrap" style="position:relative;">
-      <button class="btn btn-sm btn-quiet" data-action="toggle-changetype-menu">Φίλτρο είδους${n ? ` (${n})` : ''} ▾</button>
+      <button class="btn btn-sm btn-quiet" data-action="toggle-changetype-menu">Φίλτρο${n ? ` (${n})` : ''} ▾</button>
       ${state.changeTypeMenuOpen ? `
         <div class="navbtn-dropdown" style="padding:10px 14px; min-width:280px;">
           ${CHANGE_TYPES.map(ct => `
