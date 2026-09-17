@@ -39,6 +39,7 @@ model Entry {
   isDistrictHeating   Boolean   @default(false) // "νέο μέλος" only — τηλεθέρμανση
   changeTypes         String[]  @default([]) // "change" only — είδος αλλαγής (πολλαπλή επιλογή)
   changeTypeOther     String?   // free text for the "Άλλο" change type option
+  supplyType          String?   // "νέο μέλος" only — είδος παροχής (οικιακή/επαγγελματική/αγροτική)
   createdByEmail      String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt

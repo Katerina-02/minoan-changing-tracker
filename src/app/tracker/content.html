@@ -125,7 +125,7 @@
   .field input.input-error, .field textarea.input-error, .field select.input-error{border-color:#dc2626; box-shadow:0 0 0 2px rgba(220,38,38,.15);}
   /* Checkboxes shouldn't inherit the full-width text-input box styling above — it stretched
      the checkbox into a large padded rectangle, shoving its label text off to the side. */
-  .field input[type="checkbox"]{width:auto; padding:0; border:none; border-radius:0; background:none; flex-shrink:0;}
+  .field input[type="checkbox"], .field input[type="radio"]{width:auto; padding:0; border:none; border-radius:0; background:none; flex-shrink:0;}
   .checkbox-row{display:flex; align-items:center; gap:8px; cursor:pointer;}
   .checkbox-group{display:flex; flex-direction:column; gap:10px;}
   .reg-row2{display:flex; gap:14px;}
@@ -454,6 +454,14 @@ const CHANGE_TYPES = [
   {id:'other', label:'ΑΛΛΟ'},
 ];
 
+// "membership" requests only — single-select (a supply is one of these,
+// not several at once), so rendered as radio buttons, not checkboxes.
+const SUPPLY_TYPES = [
+  {id:'residential', label:'ΟΙΚΙΑΚΗ ΠΑΡΟΧΗ'},
+  {id:'commercial', label:'ΕΠΑΓΓΕΛΜΑΤΙΚΗ ΠΑΡΟΧΗ'},
+  {id:'agricultural', label:'ΑΓΡΟΤΙΚΗ ΠΑΡΟΧΗ'},
+];
+
 // Renders an entry's selected change types as a display string, e.g.
 // "Αύξηση kW, Μεταφορά kW σε άλλη παροχή" — 'other' shows the free-text
 // the user typed in place of the generic "Άλλο" label.
@@ -465,6 +473,12 @@ function changeTypesLabel(e){
     const t = CHANGE_TYPES.find(c => c.id === id);
     return t ? t.label : id;
   }).filter(Boolean).join(', ');
+}
+
+function supplyTypeLabel(e){
+  if(!e.supplyType) return '';
+  const t = SUPPLY_TYPES.find(s => s.id === e.supplyType);
+  return t ? t.label : e.supplyType;
 }
 
 // "change" view — multi-select filter by change type (checking more than
@@ -773,6 +787,7 @@ function downloadReceipt(id, projectId){
     ['Αριθμός παροχής', e.supplyNumber || '—'],
     ['Έργο', proj ? proj.name : ''],
     (e.type !== 'membership' && changeTypesLabel(e)) ? ['Είδος αλλαγής', changeTypesLabel(e)] : null,
+    (e.type === 'membership' && supplyTypeLabel(e)) ? ['Είδος παροχής', supplyTypeLabel(e)] : null,
     ['Κατάσταση', STATUS_LABEL[e.status] || e.status],
     e.status === 'done' ? ['Ολοκληρώθηκε στις', toDisplayDate(e.completedDate)] : null,
   ].filter(Boolean).map(([label, value]) => `
@@ -977,6 +992,7 @@ function rowToEntry(row){
     isDistrictHeating: !!row.isDistrictHeating,
     changeTypes: row.changeTypes || [],
     changeTypeOther: row.changeTypeOther || '',
+    supplyType: row.supplyType || '',
     createdByEmail: row.createdByEmail || null,
   };
 }
@@ -1152,7 +1168,7 @@ function currentEntries(){
   return state.entries[state.currentProject] || [];
 }
 
-async function addEntry(bucketId, type, date, lastName, firstName, afm, supplyNumber, contactInfo, contactPersonName, description, fileUrl, fileName, isVulnerable, isDistrictHeating, changeTypes, changeTypeOther){
+async function addEntry(bucketId, type, date, lastName, firstName, afm, supplyNumber, contactInfo, contactPersonName, description, fileUrl, fileName, isVulnerable, isDistrictHeating, changeTypes, changeTypeOther, supplyType){
   if(state.entries[bucketId] === undefined){
     await loadEntries(bucketId);
   }
@@ -1167,7 +1183,8 @@ async function addEntry(bucketId, type, date, lastName, firstName, afm, supplyNu
     isVulnerable: isMembership ? !!isVulnerable : false,
     isDistrictHeating: isMembership ? !!isDistrictHeating : false,
     changeTypes: isMembership ? [] : (changeTypes || []),
-    changeTypeOther: isMembership ? '' : (changeTypeOther || '')
+    changeTypeOther: isMembership ? '' : (changeTypeOther || ''),
+    supplyType: isMembership ? (supplyType || '') : ''
   };
   const list = state.entries[bucketId] || [];
   list.push(entry);
@@ -1183,7 +1200,8 @@ async function addEntry(bucketId, type, date, lastName, firstName, afm, supplyNu
         contactPersonName: entry.contactPersonName, description: entry.description,
         fileUrl: entry.fileUrl, fileName: entry.fileName, isVulnerable: entry.isVulnerable,
         isDistrictHeating: entry.isDistrictHeating,
-        changeTypes: entry.changeTypes, changeTypeOther: entry.changeTypeOther
+        changeTypes: entry.changeTypes, changeTypeOther: entry.changeTypeOther,
+        supplyType: entry.supplyType
       })
     });
     return res.ok;
@@ -1679,6 +1697,17 @@ function renderEntry(e, projectId, priority, opts={}){
           </div>
           <input type="text" id="edit-changetype-other-text" placeholder="Περίγραψε το είδος αλλαγής" value="${esc(e.changeTypeOther||'')}" style="display:${(e.changeTypes||[]).includes('other')?'block':'none'}; margin-top:8px; text-transform:uppercase;">
         </div>` : ''}
+        ${e.type === 'membership' ? `
+        <div class="field">
+          <label>Είδος παροχής <span style="font-weight:400; opacity:.75;">(προαιρετικό)</span></label>
+          <div class="checkbox-group">
+            ${SUPPLY_TYPES.map(st => `
+              <label class="checkbox-row">
+                <input type="radio" name="edit-supplytype" class="edit-supplytype-rb" value="${st.id}" ${e.supplyType===st.id?'checked':''}>
+                <span>${esc(st.label)}</span>
+              </label>`).join('')}
+          </div>
+        </div>` : ''}
         <div class="field"><label>Περιγραφή αλλαγής</label><textarea id="edit-desc" rows="2">${esc(e.description)}</textarea></div>
         ${e.type === 'membership' ? `
         <div class="field">
@@ -1721,7 +1750,7 @@ function renderEntry(e, projectId, priority, opts={}){
       </div>
       <div class="entry-body">
         <div class="entry-name">${renderName(e)}${e.status==='partial' ? '<span class="badge-partial">Μερική</span>' : ''}${staleBadge}${vulnerableBadge}${districtHeatingBadge}${projectBadge}</div>
-        <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', (e.type !== 'membership' && changeTypesLabel(e)) ? `Είδος: ${esc(changeTypesLabel(e))}` : '', e.contactInfo ? esc(e.contactInfo) : '', e.createdByEmail ? `καταχωρήθηκε από ${esc(creatorLabel(e.createdByEmail))}` : ''].filter(Boolean).join(' · ')}</div>
+        <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', (e.type !== 'membership' && changeTypesLabel(e)) ? `Είδος: ${esc(changeTypesLabel(e))}` : '', (e.type === 'membership' && supplyTypeLabel(e)) ? `Είδος παροχής: ${esc(supplyTypeLabel(e))}` : '', e.contactInfo ? esc(e.contactInfo) : '', e.createdByEmail ? `καταχωρήθηκε από ${esc(creatorLabel(e.createdByEmail))}` : ''].filter(Boolean).join(' · ')}</div>
         <div class="entry-desc">${esc(e.description)}</div>
         ${renderAttachmentLink(e)}
         ${extra}
@@ -1773,7 +1802,7 @@ function renderSearchResult(e, proj, priority){
       </div>
       <div class="entry-body">
         <div class="entry-name">${renderName(e)}${isStale(e) ? `<span class="badge-partial" style="color:var(--mustard); background:var(--mustard-bg); border-color:var(--mustard);">⏳ ${monthsActive(e)} μήνες</span>` : ''}${vulnerableBadge}${districtHeatingBadge}</div>
-        <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', (e.type !== 'membership' && changeTypesLabel(e)) ? `Είδος: ${esc(changeTypesLabel(e))}` : '', e.contactInfo ? esc(e.contactInfo) : '', e.createdByEmail ? `καταχωρήθηκε από ${esc(creatorLabel(e.createdByEmail))}` : ''].filter(Boolean).join(' · ')}</div>
+        <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', (e.type !== 'membership' && changeTypesLabel(e)) ? `Είδος: ${esc(changeTypesLabel(e))}` : '', (e.type === 'membership' && supplyTypeLabel(e)) ? `Είδος παροχής: ${esc(supplyTypeLabel(e))}` : '', e.contactInfo ? esc(e.contactInfo) : '', e.createdByEmail ? `καταχωρήθηκε από ${esc(creatorLabel(e.createdByEmail))}` : ''].filter(Boolean).join(' · ')}</div>
         <div style="margin:4px 0 6px;">
           <span class="badge-partial" style="color:${cw.dark}; background:${cw.soft}; border-color:${cw.c};">${esc(proj.name)}</span>
           <span class="badge-partial" style="margin-left:4px;">${STATUS_LABEL[e.status]}</span>
@@ -2267,6 +2296,17 @@ function renderHome(){
               </label>`).join('')}
           </div>
           <input type="text" id="in-changetype-other-text" placeholder="Περίγραψε το είδος αλλαγής" style="display:none; margin-top:8px; text-transform:uppercase;">
+        </div>` : ''}
+        ${isMembership ? `
+        <div class="field">
+          <label>Είδος παροχής <span style="font-weight:400; opacity:.75;">(προαιρετικό)</span></label>
+          <div class="checkbox-group">
+            ${SUPPLY_TYPES.map(st => `
+              <label class="checkbox-row">
+                <input type="radio" name="in-supplytype" class="in-supplytype-rb" value="${st.id}">
+                <span>${esc(st.label)}</span>
+              </label>`).join('')}
+          </div>
         </div>` : ''}
         <div class="field">
           <label for="in-desc">${isMembership ? 'Σημειώσεις αιτήματος' : 'Περιγραφή αλλαγής'}</label>
@@ -2871,6 +2911,10 @@ document.addEventListener('click', async (ev)=>{
         fields.changeTypes = [...changeTypeCbs].filter(cb=>cb.checked).map(cb=>cb.value);
         fields.changeTypeOther = fields.changeTypes.includes('other') ? (document.getElementById('edit-changetype-other-text')?.value||'').trim().toUpperCase() : '';
       }
+      const supplyTypeRbs = document.querySelectorAll('.edit-supplytype-rb');
+      if(supplyTypeRbs.length){
+        fields.supplyType = document.querySelector('.edit-supplytype-rb:checked')?.value || '';
+      }
       if(attachmentFile){
         const {url: fileUrl, name: fileName} = await uploadAttachment(attachmentFile);
         if(fileUrl){ fields.fileUrl = fileUrl; fields.fileName = fileName; }
@@ -2932,6 +2976,7 @@ document.addEventListener('click', async (ev)=>{
     const isDistrictHeating = !!(districtHeatingEl && districtHeatingEl.checked);
     const changeTypes = [...document.querySelectorAll('.in-changetype-cb:checked')].map(el=>el.value);
     const changeTypeOther = changeTypes.includes('other') ? (document.getElementById('in-changetype-other-text')?.value || '').trim().toUpperCase() : '';
+    const supplyType = document.querySelector('.in-supplytype-rb:checked')?.value || '';
 
     const requiredFieldIds = ['in-supply', 'in-lastname', 'in-firstname', 'in-desc'];
     clearFieldErrors(requiredFieldIds);
@@ -2980,10 +3025,11 @@ document.addEventListener('click', async (ev)=>{
       const dh = document.getElementById('in-district-heating'); if(dh) dh.checked = false;
       document.querySelectorAll('.in-changetype-cb').forEach(cb => cb.checked = false);
       const cto = document.getElementById('in-changetype-other-text'); if(cto){ cto.value=''; cto.style.display='none'; }
+      document.querySelectorAll('.in-supplytype-rb').forEach(rb => rb.checked = false);
       clearFieldErrors(['in-supply', 'in-lastname', 'in-firstname', 'in-afm', 'in-desc']);
     }, 0);
     const {url: fileUrl, name: fileName} = await uploadAttachment(attachmentFile);
-    const entrySaved = await addEntry(bucketId, formType, date, lastName, firstName, afm, supplyNumber, contact, contactName, desc, fileUrl, fileName, isVulnerable, isDistrictHeating, changeTypes, changeTypeOther);
+    const entrySaved = await addEntry(bucketId, formType, date, lastName, firstName, afm, supplyNumber, contact, contactName, desc, fileUrl, fileName, isVulnerable, isDistrictHeating, changeTypes, changeTypeOther, supplyType);
     const contactSaved = await addOrUpdateContact(lastName, firstName, afm, contact, contactName, isMembership ? null : projectId);
     state.submitting = false;
     if(entrySaved && contactSaved){

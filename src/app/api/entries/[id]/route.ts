@@ -25,6 +25,7 @@ const PATCHABLE_FIELDS = [
   "isDistrictHeating",
   "changeTypes",
   "changeTypeOther",
+  "supplyType",
 ] as const;
 
 export async function PATCH(
