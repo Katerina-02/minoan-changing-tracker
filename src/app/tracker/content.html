@@ -551,6 +551,12 @@ function fullName(obj){
   const {last, first} = nameParts(obj);
   return `${last} ${first}`.trim();
 }
+
+// Short human-friendly id shown on the printed receipt (e.g. "B0LLXF"),
+// derived from the entry's own id so it never needs to be stored separately.
+function refNumber(e){
+  return e.id.slice(-6).toUpperCase();
+}
 function renderName(obj){
   const {last, first} = nameParts(obj);
   return `<span class="lastname">${esc(last)}</span>${first ? ` <span class="firstname">${esc(first)}</span>` : ''}`;
@@ -747,10 +753,10 @@ function downloadReceipt(id, projectId){
   const e = list.find(x => x.id === id);
   if(!e) return;
   const proj = PROJECTS.find(p => p.id === (e.projectId || projectId));
-  const refNumber = e.id.slice(-6).toUpperCase();
+  const ref = refNumber(e);
 
   const rowsHtml = [
-    ['Αρ. Αναφοράς', refNumber],
+    ['Αρ. Αναφοράς', ref],
     ['Ημερομηνία καταχώρησης', toDisplayDate(e.date)],
     ['Ονοματεπώνυμο', fullName(e)],
     e.afm ? ['ΑΦΜ', e.afm] : null,
@@ -763,7 +769,7 @@ function downloadReceipt(id, projectId){
     <tr><td class="r-label">${esc(label)}</td><td class="r-value">${esc(String(value))}</td></tr>
   `).join('');
 
-  const html = `<!DOCTYPE html><html lang="el"><head><meta charset="UTF-8"><title>Βεβαίωση αιτήματος ${refNumber}</title>
+  const html = `<!DOCTYPE html><html lang="el"><head><meta charset="UTF-8"><title>Βεβαίωση αιτήματος ${ref}</title>
 <style>
   body{font-family:Arial, Helvetica, sans-serif; padding:36px; color:#111; max-width:640px; margin:0 auto;}
   .r-ribbon{height:5px; background:linear-gradient(90deg,#1868DB 0%,#1868DB 33%,#189A57 33%,#189A57 66%,#F2790A 66%); margin-bottom:22px;}
@@ -787,7 +793,7 @@ function downloadReceipt(id, projectId){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `Εκτυπωση αιτηματος - ${fullName(e).replace(/[\\/:*?"<>|]/g,'')} - ${refNumber}.html`;
+  a.download = `Εκτυπωση αιτηματος - ${fullName(e).replace(/[\\/:*?"<>|]/g,'')} - ${ref}.html`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1777,7 +1783,7 @@ function renderSearch(){
 
   let resultsHtml = '';
   if(!q){
-    resultsHtml = `<div class="empty-state">Γράψε ονοματεπώνυμο ή ΑΦΜ για να δεις τα αιτήματά του, σε όλα τα έργα και στα αιτήματα ένταξης.</div>`;
+    resultsHtml = `<div class="empty-state">Γράψε ονοματεπώνυμο, ΑΦΜ ή αριθμό αναφοράς για να δεις τα αιτήματά του, σε όλα τα έργα και στα αιτήματα ένταξης.</div>`;
   } else if(stillLoading){
     resultsHtml = `<div class="empty-state">Φόρτωση…</div>`;
   } else {
@@ -1786,13 +1792,15 @@ function renderSearch(){
       (state.entries[p.id]||[]).forEach(e=>{
         const nameHit = fullName(e).toLowerCase().includes(q);
         const afmHit = e.afm && e.afm.includes(state.searchQuery.trim());
-        if(nameHit || afmHit) matches.push({e, proj:p});
+        const refHit = refNumber(e).toLowerCase().includes(q);
+        if(nameHit || afmHit || refHit) matches.push({e, proj:p});
       });
     });
     (state.entries[MEMBERSHIP_BUCKET]||[]).forEach(e=>{
       const nameHit = fullName(e).toLowerCase().includes(q);
       const afmHit = e.afm && e.afm.includes(state.searchQuery.trim());
-      if(nameHit || afmHit) matches.push({e, proj: MEMBERSHIP_PSEUDO_PROJECT});
+      const refHit = refNumber(e).toLowerCase().includes(q);
+      if(nameHit || afmHit || refHit) matches.push({e, proj: MEMBERSHIP_PSEUDO_PROJECT});
     });
     matches.sort((a,b)=> a.e.date < b.e.date ? 1 : a.e.date > b.e.date ? -1 : 0);
 
@@ -1812,8 +1820,8 @@ function renderSearch(){
       <h2>Αναζήτηση αιτήματος</h2>
       <div class="reg-form" style="margin-bottom:24px;">
         <div class="field" style="margin-bottom:0;">
-          <label for="in-search">Ονοματεπώνυμο ή ΑΦΜ</label>
-          <input type="text" id="in-search" placeholder="π.χ. Παπαδόπουλος ή 123456789" value="${esc(state.searchQuery)}" autocomplete="off">
+          <label for="in-search">Ονοματεπώνυμο, ΑΦΜ ή αριθμός αναφοράς</label>
+          <input type="text" id="in-search" placeholder="π.χ. Παπαδόπουλος, 123456789 ή B0LLXF" value="${esc(state.searchQuery)}" autocomplete="off">
         </div>
       </div>
       ${q ? `<div style="margin-bottom:14px;"><button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="search">⬇ Excel με τα αποτελέσματα</button></div>` : ''}
@@ -2282,7 +2290,7 @@ function renderViewFilters(searchLabel){
     <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:20px;">
       <div class="field" style="max-width:340px; margin-bottom:0; flex:1;">
         <label for="in-view-search">${searchLabel}</label>
-        <input type="text" id="in-view-search" placeholder="όνομα, ΑΦΜ ή αριθμός παροχής" value="${esc(state.viewSearchQuery)}" autocomplete="off">
+        <input type="text" id="in-view-search" placeholder="όνομα, ΑΦΜ, αριθμός παροχής ή αναφοράς" value="${esc(state.viewSearchQuery)}" autocomplete="off">
       </div>
       <div class="field" style="margin-bottom:0;">
         <label for="in-view-date-from">Από ημερομηνία</label>
@@ -2302,7 +2310,8 @@ function entryMatchesQuery(e, q){
   if(!q) return true;
   return fullName(e).toLowerCase().includes(q)
     || (e.afm && e.afm.includes(q))
-    || (e.supplyNumber && e.supplyNumber.toLowerCase().includes(q));
+    || (e.supplyNumber && e.supplyNumber.toLowerCase().includes(q))
+    || refNumber(e).toLowerCase().includes(q);
 }
 
 // A membership request is "partial" when some but not all of the 4
