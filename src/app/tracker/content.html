@@ -1411,6 +1411,17 @@ function isStale(e){
   return d <= cutoff;
 }
 
+// Full calendar months elapsed since the entry's date, used once an entry
+// passes the 3-month stale threshold to show exactly how long it's been
+// active instead of a vague "3+".
+function monthsActive(e){
+  const d = new Date(e.date + 'T00:00:00');
+  const now = new Date();
+  let months = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+  if(now.getDate() < d.getDate()) months--;
+  return Math.max(months, 0);
+}
+
 function renderEntryActions(e, projectId){
   if(state.permanentDeleteId === e.id && state.permanentDeleteProjectId === projectId){
     return `
@@ -1576,7 +1587,7 @@ function renderEntry(e, projectId, priority, opts={}){
     }
   }
   const staleBadge = isStale(e)
-    ? `<span class="badge-partial" style="color:var(--mustard); background:var(--mustard-bg); border-color:var(--mustard);">⏳ 3+ μήνες</span>`
+    ? `<span class="badge-partial" style="color:var(--mustard); background:var(--mustard-bg); border-color:var(--mustard);">⏳ ${monthsActive(e)} μήνες</span>`
     : '';
   const vulnerableBadge = e.isVulnerable
     ? `<span class="badge-partial" style="color:var(--danger); background:var(--danger-bg); border-color:var(--danger);">⚠ Ευάλωτος καταναλωτής</span>`
@@ -1699,7 +1710,7 @@ function renderSearchResult(e, proj, priority){
         ${toDisplayDate(e.date)}
       </div>
       <div class="entry-body">
-        <div class="entry-name">${renderName(e)}${isStale(e) ? '<span class="badge-partial" style="color:var(--mustard); background:var(--mustard-bg); border-color:var(--mustard);">⏳ 3+ μήνες</span>' : ''}${vulnerableBadge}${districtHeatingBadge}</div>
+        <div class="entry-name">${renderName(e)}${isStale(e) ? `<span class="badge-partial" style="color:var(--mustard); background:var(--mustard-bg); border-color:var(--mustard);">⏳ ${monthsActive(e)} μήνες</span>` : ''}${vulnerableBadge}${districtHeatingBadge}</div>
         <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', e.contactInfo ? esc(e.contactInfo) : '', e.createdByEmail ? `καταχωρήθηκε από ${esc(creatorLabel(e.createdByEmail))}` : ''].filter(Boolean).join(' · ')}</div>
         <div style="margin:4px 0 6px;">
           <span class="badge-partial" style="color:${cw.dark}; background:${cw.soft}; border-color:${cw.c};">${esc(proj.name)}</span>
