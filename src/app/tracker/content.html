@@ -1576,7 +1576,7 @@ function renderEntry(e, projectId, priority, opts={}){
     }
   }
   const staleBadge = isStale(e)
-    ? `<span class="badge-partial" style="color:var(--danger); background:var(--danger-bg); border-color:var(--danger);">⏳ 3+ μήνες</span>`
+    ? `<span class="badge-partial" style="color:var(--mustard); background:var(--mustard-bg); border-color:var(--mustard);">⏳ 3+ μήνες</span>`
     : '';
   const vulnerableBadge = e.isVulnerable
     ? `<span class="badge-partial" style="color:var(--danger); background:var(--danger-bg); border-color:var(--danger);">⚠ Ευάλωτος καταναλωτής</span>`
@@ -1699,7 +1699,7 @@ function renderSearchResult(e, proj, priority){
         ${toDisplayDate(e.date)}
       </div>
       <div class="entry-body">
-        <div class="entry-name">${renderName(e)}${isStale(e) ? '<span class="badge-partial" style="color:var(--danger); background:var(--danger-bg); border-color:var(--danger);">⏳ 3+ μήνες</span>' : ''}${vulnerableBadge}${districtHeatingBadge}</div>
+        <div class="entry-name">${renderName(e)}${isStale(e) ? '<span class="badge-partial" style="color:var(--mustard); background:var(--mustard-bg); border-color:var(--mustard);">⏳ 3+ μήνες</span>' : ''}${vulnerableBadge}${districtHeatingBadge}</div>
         <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', e.contactInfo ? esc(e.contactInfo) : '', e.createdByEmail ? `καταχωρήθηκε από ${esc(creatorLabel(e.createdByEmail))}` : ''].filter(Boolean).join(' · ')}</div>
         <div style="margin:4px 0 6px;">
           <span class="badge-partial" style="color:${cw.dark}; background:${cw.soft}; border-color:${cw.c};">${esc(proj.name)}</span>
