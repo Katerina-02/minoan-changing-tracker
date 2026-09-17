@@ -537,6 +537,7 @@ const state = {
   mFilterHeating: false,
   mFilterPartial: false,
   changeTypeFilter: [], // "change" view — selected change-type ids to filter by (OR'd together)
+  changeTypeMenuOpen: false,
 };
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
@@ -1412,6 +1413,7 @@ function switchProject(id){
   flushPendingMembershipChecklist();
   state.membershipCompleteId = null;
   state.viewSearchQuery = '';
+  state.changeTypeMenuOpen = false;
   if(id === ALL_ID){
     PROJECTS.forEach(p => loadEntries(p.id));
   } else {
@@ -1424,6 +1426,7 @@ function goToPage(page){
   state.page = page;
   state.viewMenuOpen = false;
   state.profileMenuOpen = false;
+  state.changeTypeMenuOpen = false;
   state.deletingId = null;
   state.deletingProjectId = null;
   state.permanentDeleteId = null;
@@ -2316,14 +2319,25 @@ function renderViewFilters(searchLabel){
 // "change" view only — lets picking one or more change types to narrow
 // the list to (checking more than one widens the match, it doesn't
 // require all of them).
+// "change" view only — a dropdown menu (sitting next to the sort select)
+// that lets picking one or more change types to narrow the list to.
+// Checking more than one widens the match rather than requiring all of
+// them. Stays open while toggling checkboxes; closes on an outside click
+// or by toggling the button again (see the outside-click handler below).
 function renderChangeTypeFilters(){
+  const n = state.changeTypeFilter.length;
   return `
-    <div style="display:flex; gap:12px 16px; flex-wrap:wrap; align-items:center; margin:-8px 0 20px; font-size:13.5px;">
-      <span class="muted">Είδος αλλαγής:</span>
-      ${CHANGE_TYPES.map(ct => `
-        <label class="checkbox-row"><input type="checkbox" class="cf-changetype" value="${ct.id}" ${state.changeTypeFilter.includes(ct.id)?'checked':''}> ${esc(ct.label)}</label>
-      `).join('')}
-      ${state.changeTypeFilter.length ? `<button class="btn btn-sm btn-quiet" data-action="clear-changetype-filter">Καθαρισμός</button>` : ''}
+    <div class="navbtn-dropdown-wrap changetype-filter-wrap" style="position:relative;">
+      <button class="btn btn-sm btn-quiet" data-action="toggle-changetype-menu">Φίλτρο είδους${n ? ` (${n})` : ''} ▾</button>
+      ${state.changeTypeMenuOpen ? `
+        <div class="navbtn-dropdown" style="padding:10px 14px; min-width:280px;">
+          ${CHANGE_TYPES.map(ct => `
+            <label class="checkbox-row" style="padding:5px 0;">
+              <input type="checkbox" class="cf-changetype" value="${ct.id}" ${state.changeTypeFilter.includes(ct.id)?'checked':''}>
+              <span>${esc(ct.label)}</span>
+            </label>`).join('')}
+          ${n ? `<button class="btn btn-sm btn-quiet" data-action="clear-changetype-filter" style="margin-top:6px;">Καθαρισμός</button>` : ''}
+        </div>` : ''}
     </div>`;
 }
 
@@ -2462,7 +2476,6 @@ function renderView(){
         <div class="project-sub">${combinedPending.length} εκκρεμότητ${combinedPending.length===1?'α':'ες'}${partialCount?` · ${partialCount} μερικ${partialCount===1?'ή':'ές'}`:''} · ${combinedDone.length} ολοκληρωμέν${combinedDone.length===1?'η':'ες'}${combinedDeleted.length ? ` · ${combinedDeleted.length} διαγραμμέν${combinedDeleted.length===1?'η':'ες'}` : ''}</div>
 
         ${renderViewFilters('Αναζήτηση σε όλα τα έργα')}
-        ${renderChangeTypeFilters()}
 
         <section class="list-section">
           <div class="section-head">
@@ -2473,6 +2486,7 @@ function renderView(){
               <option value="alpha" ${state.viewSort==='alpha'?'selected':''}>Ταξινόμηση: Αλφαβητικά (Α-Ω)</option>
               <option value="newest" ${state.viewSort==='newest'?'selected':''}>Ταξινόμηση: Νεότερες πρώτα</option>
             </select>
+            ${renderChangeTypeFilters()}
             <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="all-pending">⬇ Excel</button>
             <button class="btn btn-sm btn-quiet" data-action="print-view">🖨 Λήψη για εκτύπωση</button>
           </div>
@@ -2530,7 +2544,6 @@ function renderView(){
       <div class="project-sub">${pending.length} εκκρεμότητ${pending.length===1?'α':'ες'}${partialCount?` · ${partialCount} μερικ${partialCount===1?'ή':'ές'}`:''} · ${done.length} ολοκληρωμέν${done.length===1?'η':'ες'}${deleted.length ? ` · ${deleted.length} διαγραμμέν${deleted.length===1?'η':'ες'}` : ''}</div>
 
       ${renderViewFilters('Αναζήτηση σε αυτό το έργο')}
-      ${renderChangeTypeFilters()}
 
       <section class="list-section">
         <div class="section-head">
@@ -2541,6 +2554,7 @@ function renderView(){
             <option value="alpha" ${state.viewSort==='alpha'?'selected':''}>Ταξινόμηση: Αλφαβητικά (Α-Ω)</option>
             <option value="newest" ${state.viewSort==='newest'?'selected':''}>Ταξινόμηση: Νεότερες πρώτα</option>
           </select>
+          ${renderChangeTypeFilters()}
           <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="pending">⬇ Excel</button>
           <button class="btn btn-sm btn-quiet" data-action="print-view">🖨 Λήψη για εκτύπωση</button>
         </div>
@@ -2881,7 +2895,17 @@ document.addEventListener('click', async (ev)=>{
       state.changeTypeFilter = [];
       render();
     }
+    else if(action==='toggle-changetype-menu'){
+      state.changeTypeMenuOpen = !state.changeTypeMenuOpen;
+      state.viewMenuOpen = false;
+      state.profileMenuOpen = false;
+      render();
+    }
     return;
+  }
+  if(state.changeTypeMenuOpen && !ev.target.closest('.changetype-filter-wrap')){
+    state.changeTypeMenuOpen = false;
+    render();
   }
   const suggestionsBox = document.getElementById('contact-suggestions');
   if(suggestionsBox && !suggestionsBox.contains(ev.target) && ev.target.id !== 'in-lastname' && ev.target.id !== 'in-firstname'){
