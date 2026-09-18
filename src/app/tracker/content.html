@@ -483,9 +483,12 @@ function supplyTypeLabel(e){
 
 // "change" view — multi-select filter by change type (checking more than
 // one widens the results, matching ANY of the selected types).
+// 'partial_status' is a special filter value (not a change type) meaning
+// "status is partial" — kept in the same array/checkbox group as the
+// change types so it OR-combines with them the same way.
 function entryMatchesChangeTypeFilter(e){
   if(!state.changeTypeFilter.length) return true;
-  return (e.changeTypes||[]).some(t => state.changeTypeFilter.includes(t));
+  return state.changeTypeFilter.some(v => v === 'partial_status' ? e.status === 'partial' : (e.changeTypes||[]).includes(v));
 }
 
 const ALL_ID = 'all-projects';
@@ -2371,6 +2374,10 @@ function renderChangeTypeFilters(){
       <button class="btn btn-sm btn-quiet" data-action="toggle-changetype-menu">Φίλτρο${n ? ` (${n})` : ''} ▾</button>
       ${state.changeTypeMenuOpen ? `
         <div class="navbtn-dropdown" style="padding:10px 14px; min-width:280px;">
+          <label class="checkbox-row" style="padding:5px 0;">
+            <input type="checkbox" class="cf-changetype" value="partial_status" ${state.changeTypeFilter.includes('partial_status')?'checked':''}>
+            <span>ΜΕΡΙΚΗ ΟΛΟΚΛΗΡΩΣΗ</span>
+          </label>
           ${CHANGE_TYPES.map(ct => `
             <label class="checkbox-row" style="padding:5px 0;">
               <input type="checkbox" class="cf-changetype" value="${ct.id}" ${state.changeTypeFilter.includes(ct.id)?'checked':''}>
