@@ -1548,11 +1548,19 @@ function renderEntryActions(e, projectId){
   `;
 }
 
-function renderPartialNotes(e, projectId){
+// readOnly=true (used once an entry is marked done) drops the edit/delete
+// controls — the comment history becomes a permanent record at that point,
+// consistent with it being kept forever rather than editable.
+function renderPartialNotes(e, projectId, readOnly=false){
   const notes = (e.partialNotes && e.partialNotes.length)
     ? e.partialNotes
     : (e.partialNote ? [{date: e.date, text: e.partialNote}] : []);
   if(!notes.length) return '';
+  if(readOnly){
+    return `<div class="entry-partial-note">${notes.map(n => `
+      <div class="partial-note-line"><span>${toDisplayDate(n.date)}: ${esc(n.text)}</span></div>
+    `).join('')}</div>`;
+  }
   return `<div class="entry-partial-note">${notes.map((n, idx) => {
     const isEditing = state.editingPartialNoteId === e.id && state.editingPartialNoteProjectId === projectId && state.editingPartialNoteIndex === idx;
     const isDeleting = state.deletingPartialNoteId === e.id && state.deletingPartialNoteProjectId === projectId && state.deletingPartialNoteIndex === idx;
@@ -1605,11 +1613,11 @@ function renderEntry(e, projectId, priority, opts={}){
       const enrolledProj = PROJECTS.find(p=>p.id===e.projectId);
       extra = `<div class="entry-completed-date">Ολοκληρώθηκε: ${toDisplayDate(e.completedDate)}${enrolledProj ? ` — Έργο ένταξης: ${esc(enrolledProj.name)}` : ''}</div>`;
     } else {
-      extra = `<div class="entry-completed-date">Ολοκληρώθηκε: ${toDisplayDate(e.completedDate)}</div>`;
+      extra = `<div class="entry-completed-date">Ολοκληρώθηκε: ${toDisplayDate(e.completedDate)}</div>` + renderPartialNotes(e, projectId, true);
     }
   }
   if(e.status === 'deleted'){
-    extra = `<div class="entry-deleted-note">Διαγράφηκε: ${toDisplayDate(e.deletedDate)}${e.deleteReason ? ` — ${esc(e.deleteReason)}` : ''}</div>`;
+    extra = `<div class="entry-deleted-note">Διαγράφηκε: ${toDisplayDate(e.deletedDate)}${e.deleteReason ? ` — ${esc(e.deleteReason)}` : ''}</div>` + renderPartialNotes(e, projectId, true);
   }
   let editBox = '';
   if(state.editingPartialId === e.id && state.editingPartialProjectId === projectId){
@@ -1785,7 +1793,7 @@ function renderSearchResult(e, proj, priority){
       const enrolledProj = PROJECTS.find(p=>p.id===e.projectId);
       extra = `<div class="entry-completed-date">Ολοκληρώθηκε: ${toDisplayDate(e.completedDate)}${enrolledProj ? ` — Έργο ένταξης: ${esc(enrolledProj.name)}` : ''}</div>`;
     } else {
-      extra = `<div class="entry-completed-date">Ολοκληρώθηκε: ${toDisplayDate(e.completedDate)}</div>`;
+      extra = `<div class="entry-completed-date">Ολοκληρώθηκε: ${toDisplayDate(e.completedDate)}</div>` + renderPartialNotes(e, proj.id, true);
     }
   }
   const vulnerableBadge = e.isVulnerable
