@@ -450,6 +450,7 @@ const CHANGE_TYPES = [
   {id:'transfer_kw_from', label:'ΜΕΤΑΦΟΡΑ KW ΑΠΟ ΑΛΛΗ ΠΑΡΟΧΗ'},
   {id:'change_address', label:'ΑΛΛΑΓΗ ΔΙΕΥΘΥΝΣΗΣ'},
   {id:'change_supply', label:'ΑΛΛΑΓΗ ΑΡ. ΠΑΡΟΧΗΣ'},
+  {id:'change_name', label:'ΑΛΛΑΓΗ ΕΠΩΝΥΜΙΑΣ'},
   {id:'remove_supply', label:'ΑΦΑΙΡΕΣΗ ΠΑΡΟΧΗΣ'},
   {id:'other', label:'ΑΛΛΟ'},
 ];
@@ -552,6 +553,7 @@ const state = {
   // matching ANY of the checked ones, not all of them).
   mFilterVulnerable: false,
   mFilterHeating: false,
+  mFilterArvi: false,
   mFilterPartial: false,
   changeTypeFilter: [], // "change" view — selected change-type ids to filter by (OR'd together)
   changeTypeMenuOpen: false,
@@ -993,6 +995,7 @@ function rowToEntry(row){
     membershipChecklist: row.membershipChecklist || {},
     isVulnerable: !!row.isVulnerable,
     isDistrictHeating: !!row.isDistrictHeating,
+    isArvi: !!row.isArvi,
     changeTypes: row.changeTypes || [],
     changeTypeOther: row.changeTypeOther || '',
     supplyType: row.supplyType || '',
@@ -1171,7 +1174,7 @@ function currentEntries(){
   return state.entries[state.currentProject] || [];
 }
 
-async function addEntry(bucketId, type, date, lastName, firstName, afm, supplyNumber, contactInfo, contactPersonName, description, fileUrl, fileName, isVulnerable, isDistrictHeating, changeTypes, changeTypeOther, supplyType){
+async function addEntry(bucketId, type, date, lastName, firstName, afm, supplyNumber, contactInfo, contactPersonName, description, fileUrl, fileName, isVulnerable, isDistrictHeating, changeTypes, changeTypeOther, supplyType, isArvi){
   if(state.entries[bucketId] === undefined){
     await loadEntries(bucketId);
   }
@@ -1185,6 +1188,7 @@ async function addEntry(bucketId, type, date, lastName, firstName, afm, supplyNu
     fileUrl: fileUrl || null, fileName: fileName || null, membershipChecklist: {},
     isVulnerable: isMembership ? !!isVulnerable : false,
     isDistrictHeating: isMembership ? !!isDistrictHeating : false,
+    isArvi: isMembership ? !!isArvi : false,
     changeTypes: isMembership ? [] : (changeTypes || []),
     changeTypeOther: isMembership ? '' : (changeTypeOther || ''),
     supplyType: isMembership ? (supplyType || '') : ''
@@ -1202,7 +1206,7 @@ async function addEntry(bucketId, type, date, lastName, firstName, afm, supplyNu
         afm: entry.afm, supplyNumber: entry.supplyNumber, contactInfo: entry.contactInfo,
         contactPersonName: entry.contactPersonName, description: entry.description,
         fileUrl: entry.fileUrl, fileName: entry.fileName, isVulnerable: entry.isVulnerable,
-        isDistrictHeating: entry.isDistrictHeating,
+        isDistrictHeating: entry.isDistrictHeating, isArvi: entry.isArvi,
         changeTypes: entry.changeTypes, changeTypeOther: entry.changeTypeOther,
         supplyType: entry.supplyType
       })
@@ -1674,6 +1678,9 @@ function renderEntry(e, projectId, priority, opts={}){
   const districtHeatingBadge = e.isDistrictHeating
     ? `<span class="badge-partial" style="color:var(--accent-dark); background:var(--accent-soft); border-color:var(--accent);">🔥 Τηλεθέρμανση</span>`
     : '';
+  const arviBadge = e.isArvi
+    ? `<span class="badge-partial" style="color:var(--teal); background:var(--teal-bg); border-color:var(--teal);">ΑΡΒΗ</span>`
+    : '';
 
   if(state.editingEntryId === e.id && state.editingEntryProjectId === projectId){
     const {last, first} = nameParts(e);
@@ -1731,6 +1738,10 @@ function renderEntry(e, projectId, priority, opts={}){
               <input type="checkbox" id="edit-district-heating" ${e.isDistrictHeating?'checked':''}>
               <span>Τηλεθέρμανση</span>
             </label>
+            <label class="checkbox-row">
+              <input type="checkbox" id="edit-arvi" ${e.isArvi?'checked':''}>
+              <span>ΑΡΒΗ</span>
+            </label>
           </div>
         </div>` : ''}
         <div class="field">
@@ -1760,7 +1771,7 @@ function renderEntry(e, projectId, priority, opts={}){
         ${toDisplayDate(e.date)}
       </div>
       <div class="entry-body">
-        <div class="entry-name">${renderName(e)}${e.status==='partial' ? '<span class="badge-partial">Μερική</span>' : ''}${staleBadge}${vulnerableBadge}${districtHeatingBadge}${projectBadge}</div>
+        <div class="entry-name">${renderName(e)}${e.status==='partial' ? '<span class="badge-partial">Μερική</span>' : ''}${staleBadge}${vulnerableBadge}${districtHeatingBadge}${arviBadge}${projectBadge}</div>
         <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', (e.type !== 'membership' && changeTypesLabel(e)) ? `Είδος: ${esc(changeTypesLabel(e))}` : '', (e.type === 'membership' && supplyTypeLabel(e)) ? `Είδος παροχής: ${esc(supplyTypeLabel(e))}` : '', e.contactInfo ? esc(e.contactInfo) : '', e.createdByEmail ? `καταχωρήθηκε από ${esc(creatorLabel(e.createdByEmail))}` : ''].filter(Boolean).join(' · ')}</div>
         <div class="entry-desc">${esc(e.description)}</div>
         ${renderAttachmentLink(e)}
@@ -1802,6 +1813,9 @@ function renderSearchResult(e, proj, priority){
   const districtHeatingBadge = e.isDistrictHeating
     ? `<span class="badge-partial" style="color:var(--accent-dark); background:var(--accent-soft); border-color:var(--accent);">🔥 Τηλεθέρμανση</span>`
     : '';
+  const arviBadge = e.isArvi
+    ? `<span class="badge-partial" style="color:var(--teal); background:var(--teal-bg); border-color:var(--teal);">ΑΡΒΗ</span>`
+    : '';
   const openButton = e.type === 'membership'
     ? `<button class="btn btn-sm btn-quiet" data-action="goto" data-page="membershipView">Άνοιγμα στα αιτήματα ένταξης →</button>`
     : `<button class="btn btn-sm btn-quiet" data-action="open-in-project" data-id="${proj.id}">Άνοιγμα στο έργο →</button>`;
@@ -1812,7 +1826,7 @@ function renderSearchResult(e, proj, priority){
         ${toDisplayDate(e.date)}
       </div>
       <div class="entry-body">
-        <div class="entry-name">${renderName(e)}${isStale(e) ? `<span class="badge-partial" style="color:var(--mustard); background:var(--mustard-bg); border-color:var(--mustard);">⏳ ${monthsActive(e)} μήνες</span>` : ''}${vulnerableBadge}${districtHeatingBadge}</div>
+        <div class="entry-name">${renderName(e)}${isStale(e) ? `<span class="badge-partial" style="color:var(--mustard); background:var(--mustard-bg); border-color:var(--mustard);">⏳ ${monthsActive(e)} μήνες</span>` : ''}${vulnerableBadge}${districtHeatingBadge}${arviBadge}</div>
         <div class="entry-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', (e.type !== 'membership' && changeTypesLabel(e)) ? `Είδος: ${esc(changeTypesLabel(e))}` : '', (e.type === 'membership' && supplyTypeLabel(e)) ? `Είδος παροχής: ${esc(supplyTypeLabel(e))}` : '', e.contactInfo ? esc(e.contactInfo) : '', e.createdByEmail ? `καταχωρήθηκε από ${esc(creatorLabel(e.createdByEmail))}` : ''].filter(Boolean).join(' · ')}</div>
         <div style="margin:4px 0 6px;">
           <span class="badge-partial" style="color:${cw.dark}; background:${cw.soft}; border-color:${cw.c};">${esc(proj.name)}</span>
@@ -1986,6 +2000,7 @@ function renderStats(){
   const membershipDeleted = membershipAll.filter(e=>e.status==='deleted');
   const vulnerableCount = membershipAll.filter(e=>e.isVulnerable).length;
   const districtHeatingCount = membershipAll.filter(e=>e.isDistrictHeating).length;
+  const arviCount = membershipAll.filter(e=>e.isArvi).length;
 
   const maxEnrolledPerProject = Math.max(1, ...PROJECTS.map(p => membershipDone.filter(e=>e.projectId===p.id).length));
   const enrolledBars = PROJECTS.map(p => {
@@ -2057,6 +2072,7 @@ function renderStats(){
         <div class="stat-card"><div class="stat-number">${membershipDeleted.length}</div><div class="stat-label">Διαγράφηκαν</div></div>
         <div class="stat-card"><div class="stat-number">${vulnerableCount}</div><div class="stat-label">Ευάλωτοι καταναλωτές</div></div>
         <div class="stat-card"><div class="stat-number">${districtHeatingCount}</div><div class="stat-label">Τηλεθέρμανση</div></div>
+        <div class="stat-card"><div class="stat-number">${arviCount}</div><div class="stat-label">ΑΡΒΗ</div></div>
       </div>
 
       <div class="charts-row">
@@ -2334,8 +2350,12 @@ function renderHome(){
               <input type="checkbox" id="in-district-heating">
               <span>Τηλεθέρμανση</span>
             </label>
+            <label class="checkbox-row">
+              <input type="checkbox" id="in-arvi">
+              <span>ΑΡΒΗ</span>
+            </label>
           </div>
-          <div class="field-hint" style="color:var(--ink-soft);">Τσέκαρε ό,τι ισχύει: αν το άτομο εντάσσεται στην κατηγορία ευάλωτων καταναλωτών ή/και είναι σε τηλεθέρμανση.</div>
+          <div class="field-hint" style="color:var(--ink-soft);">Τσέκαρε ό,τι ισχύει: αν το άτομο εντάσσεται στην κατηγορία ευάλωτων καταναλωτών, είναι σε τηλεθέρμανση ή/και ΑΡΒΗ.</div>
         </div>` : ''}
         <div class="field">
           <label for="in-attachment">📎 Επισύναψη αρχείου <span style="font-weight:400; opacity:.75;">(προαιρετικό — PDF ή εικόνα, έως 4MB)</span></label>
@@ -2417,7 +2437,7 @@ function isPartialMembership(e){
 }
 
 function membershipAttributeFilterActive(){
-  return state.mFilterVulnerable || state.mFilterHeating || state.mFilterPartial;
+  return state.mFilterVulnerable || state.mFilterHeating || state.mFilterArvi || state.mFilterPartial;
 }
 
 // Multiple checked filters are OR'd together — checking more boxes widens
@@ -2426,6 +2446,7 @@ function membershipEntryMatchesFilters(e){
   if(!membershipAttributeFilterActive()) return true;
   return (state.mFilterVulnerable && e.isVulnerable)
     || (state.mFilterHeating && e.isDistrictHeating)
+    || (state.mFilterArvi && e.isArvi)
     || (state.mFilterPartial && isPartialMembership(e));
 }
 
@@ -2686,6 +2707,7 @@ function renderMembershipView(){
         <span class="muted">Εμφάνιση μόνο:</span>
         <label class="checkbox-row"><input type="checkbox" id="mf-vulnerable" ${state.mFilterVulnerable?'checked':''}> Ευάλωτοι καταναλωτές</label>
         <label class="checkbox-row"><input type="checkbox" id="mf-heating" ${state.mFilterHeating?'checked':''}> Τηλεθέρμανση</label>
+        <label class="checkbox-row"><input type="checkbox" id="mf-arvi" ${state.mFilterArvi?'checked':''}> ΑΡΒΗ</label>
         <label class="checkbox-row"><input type="checkbox" id="mf-partial" ${state.mFilterPartial?'checked':''}> Μερική ολοκλήρωση</label>
       </div>
 
@@ -2921,6 +2943,8 @@ document.addEventListener('click', async (ev)=>{
       };
       if(vulnerableEl) fields.isVulnerable = vulnerableEl.checked;
       if(districtHeatingEl) fields.isDistrictHeating = districtHeatingEl.checked;
+      const arviEl = document.getElementById('edit-arvi');
+      if(arviEl) fields.isArvi = arviEl.checked;
       const changeTypeCbs = document.querySelectorAll('.edit-changetype-cb');
       if(changeTypeCbs.length){
         fields.changeTypes = [...changeTypeCbs].filter(cb=>cb.checked).map(cb=>cb.value);
@@ -2989,6 +3013,7 @@ document.addEventListener('click', async (ev)=>{
     const isVulnerable = !!(vulnerableEl && vulnerableEl.checked);
     const districtHeatingEl = document.getElementById('in-district-heating');
     const isDistrictHeating = !!(districtHeatingEl && districtHeatingEl.checked);
+    const isArvi = !!document.getElementById('in-arvi')?.checked;
     const changeTypes = [...document.querySelectorAll('.in-changetype-cb:checked')].map(el=>el.value);
     const changeTypeOther = changeTypes.includes('other') ? (document.getElementById('in-changetype-other-text')?.value || '').trim().toUpperCase() : '';
     const supplyType = document.querySelector('.in-supplytype-rb:checked')?.value || '';
@@ -3038,13 +3063,14 @@ document.addEventListener('click', async (ev)=>{
       const att = document.getElementById('in-attachment'); if(att) att.value='';
       const vu = document.getElementById('in-vulnerable'); if(vu) vu.checked = false;
       const dh = document.getElementById('in-district-heating'); if(dh) dh.checked = false;
+      const av = document.getElementById('in-arvi'); if(av) av.checked = false;
       document.querySelectorAll('.in-changetype-cb').forEach(cb => cb.checked = false);
       const cto = document.getElementById('in-changetype-other-text'); if(cto){ cto.value=''; cto.style.display='none'; }
       document.querySelectorAll('.in-supplytype-rb').forEach(rb => rb.checked = false);
       clearFieldErrors(['in-supply', 'in-lastname', 'in-firstname', 'in-afm', 'in-desc']);
     }, 0);
     const {url: fileUrl, name: fileName} = await uploadAttachment(attachmentFile);
-    const entrySaved = await addEntry(bucketId, formType, date, lastName, firstName, afm, supplyNumber, contact, contactName, desc, fileUrl, fileName, isVulnerable, isDistrictHeating, changeTypes, changeTypeOther, supplyType);
+    const entrySaved = await addEntry(bucketId, formType, date, lastName, firstName, afm, supplyNumber, contact, contactName, desc, fileUrl, fileName, isVulnerable, isDistrictHeating, changeTypes, changeTypeOther, supplyType, isArvi);
     const contactSaved = await addOrUpdateContact(lastName, firstName, afm, contact, contactName, isMembership ? null : projectId);
     state.submitting = false;
     if(entrySaved && contactSaved){
@@ -3171,6 +3197,10 @@ document.addEventListener('change', (ev)=>{
   }
   if(ev.target.id === 'mf-heating'){
     state.mFilterHeating = ev.target.checked;
+    render();
+  }
+  if(ev.target.id === 'mf-arvi'){
+    state.mFilterArvi = ev.target.checked;
     render();
   }
   if(ev.target.id === 'mf-partial'){

@@ -23,6 +23,7 @@ const PATCHABLE_FIELDS = [
   "membershipChecklist",
   "isVulnerable",
   "isDistrictHeating",
+  "isArvi",
   "changeTypes",
   "changeTypeOther",
   "supplyType",

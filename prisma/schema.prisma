@@ -37,6 +37,7 @@ model Entry {
   membershipChecklist Json?     @default("{}")
   isVulnerable        Boolean   @default(false) // "νέο μέλος" only — ευάλωτος καταναλωτής
   isDistrictHeating   Boolean   @default(false) // "νέο μέλος" only — τηλεθέρμανση
+  isArvi              Boolean   @default(false) // "νέο μέλος" only — ΑΡΒΗ
   changeTypes         String[]  @default([]) // "change" only — είδος αλλαγής (πολλαπλή επιλογή)
   changeTypeOther     String?   // free text for the "Άλλο" change type option
   supplyType          String?   // "νέο μέλος" only — είδος παροχής (οικιακή/επαγγελματική/αγροτική)
