@@ -1679,7 +1679,7 @@ function renderEntry(e, projectId, priority, opts={}){
     ? `<span class="badge-partial" style="color:var(--accent-dark); background:var(--accent-soft); border-color:var(--accent);">🔥 Τηλεθέρμανση</span>`
     : '';
   const arviBadge = e.isArvi
-    ? `<span class="badge-partial" style="color:var(--teal); background:var(--teal-bg); border-color:var(--teal);">ΑΡΒΗ</span>`
+    ? `<span class="badge-partial" style="color:var(--teal); background:var(--teal-bg); border-color:var(--teal);">Άρβη</span>`
     : '';
 
   if(state.editingEntryId === e.id && state.editingEntryProjectId === projectId){
@@ -1740,7 +1740,7 @@ function renderEntry(e, projectId, priority, opts={}){
             </label>
             <label class="checkbox-row">
               <input type="checkbox" id="edit-arvi" ${e.isArvi?'checked':''}>
-              <span>ΑΡΒΗ</span>
+              <span>Άρβη</span>
             </label>
           </div>
         </div>` : ''}
@@ -1814,7 +1814,7 @@ function renderSearchResult(e, proj, priority){
     ? `<span class="badge-partial" style="color:var(--accent-dark); background:var(--accent-soft); border-color:var(--accent);">🔥 Τηλεθέρμανση</span>`
     : '';
   const arviBadge = e.isArvi
-    ? `<span class="badge-partial" style="color:var(--teal); background:var(--teal-bg); border-color:var(--teal);">ΑΡΒΗ</span>`
+    ? `<span class="badge-partial" style="color:var(--teal); background:var(--teal-bg); border-color:var(--teal);">Άρβη</span>`
     : '';
   const openButton = e.type === 'membership'
     ? `<button class="btn btn-sm btn-quiet" data-action="goto" data-page="membershipView">Άνοιγμα στα αιτήματα ένταξης →</button>`
@@ -2072,7 +2072,7 @@ function renderStats(){
         <div class="stat-card"><div class="stat-number">${membershipDeleted.length}</div><div class="stat-label">Διαγράφηκαν</div></div>
         <div class="stat-card"><div class="stat-number">${vulnerableCount}</div><div class="stat-label">Ευάλωτοι καταναλωτές</div></div>
         <div class="stat-card"><div class="stat-number">${districtHeatingCount}</div><div class="stat-label">Τηλεθέρμανση</div></div>
-        <div class="stat-card"><div class="stat-number">${arviCount}</div><div class="stat-label">ΑΡΒΗ</div></div>
+        <div class="stat-card"><div class="stat-number">${arviCount}</div><div class="stat-label">Άρβη</div></div>
       </div>
 
       <div class="charts-row">
@@ -2352,10 +2352,10 @@ function renderHome(){
             </label>
             <label class="checkbox-row">
               <input type="checkbox" id="in-arvi">
-              <span>ΑΡΒΗ</span>
+              <span>Άρβη</span>
             </label>
           </div>
-          <div class="field-hint" style="color:var(--ink-soft);">Τσέκαρε ό,τι ισχύει: αν το άτομο εντάσσεται στην κατηγορία ευάλωτων καταναλωτών, είναι σε τηλεθέρμανση ή/και ΑΡΒΗ.</div>
+          <div class="field-hint" style="color:var(--ink-soft);">Τσέκαρε ό,τι ισχύει: αν το άτομο εντάσσεται στην κατηγορία ευάλωτων καταναλωτών, είναι σε τηλεθέρμανση ή/και Άρβη.</div>
         </div>` : ''}
         <div class="field">
           <label for="in-attachment">📎 Επισύναψη αρχείου <span style="font-weight:400; opacity:.75;">(προαιρετικό — PDF ή εικόνα, έως 4MB)</span></label>
@@ -2707,7 +2707,7 @@ function renderMembershipView(){
         <span class="muted">Εμφάνιση μόνο:</span>
         <label class="checkbox-row"><input type="checkbox" id="mf-vulnerable" ${state.mFilterVulnerable?'checked':''}> Ευάλωτοι καταναλωτές</label>
         <label class="checkbox-row"><input type="checkbox" id="mf-heating" ${state.mFilterHeating?'checked':''}> Τηλεθέρμανση</label>
-        <label class="checkbox-row"><input type="checkbox" id="mf-arvi" ${state.mFilterArvi?'checked':''}> ΑΡΒΗ</label>
+        <label class="checkbox-row"><input type="checkbox" id="mf-arvi" ${state.mFilterArvi?'checked':''}> Άρβη</label>
         <label class="checkbox-row"><input type="checkbox" id="mf-partial" ${state.mFilterPartial?'checked':''}> Μερική ολοκλήρωση</label>
       </div>
 
