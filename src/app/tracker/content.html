@@ -189,6 +189,7 @@
     font-size:13px;
     opacity:.85;
   }
+  .tabs-sep{height:1px; background:var(--line); margin:8px 4px; flex-shrink:0;}
   .tab.active .letter{background:var(--tab-c, var(--accent)); border-color:var(--tab-c, var(--accent)); color:#fff; opacity:1;}
   .tab .count{
     margin-left:auto; font-size:11px; color:var(--ink-soft);
@@ -400,6 +401,7 @@
     .view-app{flex-direction:column;}
     .tabs{width:100%; flex-direction:row; overflow-x:auto; padding:16px 14px 8px; gap:8px;}
     .tab{flex-shrink:0; border-radius:8px;}
+    .tabs-sep{width:1px; height:auto; margin:4px 6px; align-self:stretch;}
     .tab.active{box-shadow:none; border-right:1px solid var(--line);}
     .main{margin:0; border-radius:0; padding:22px 18px 40px;}
     .entry{flex-direction:column;}
@@ -453,6 +455,7 @@ const CHANGE_TYPES = [
   {id:'change_name', label:'ΑΛΛΑΓΗ ΕΠΩΝΥΜΙΑΣ'},
   {id:'remove_supply', label:'ΑΦΑΙΡΕΣΗ ΠΑΡΟΧΗΣ'},
   {id:'surplus_check', label:'ΕΛΕΓΧΟΣ ΠΕΡΙΣΣΕΥΜΑΤΟΣ'},
+  {id:'offset_check', label:'ΕΛΕΓΧΟΣ ΣΥΜΨΗΦΙΣΜΟΥ'},
   {id:'other', label:'ΑΛΛΟ'},
 ];
 
@@ -655,7 +658,7 @@ function exportXlsx(target){
   if(target === 'pending' || target === 'done' || target === 'deleted'){
     const projectId = state.currentProject;
     const proj = PROJECTS.find(p=>p.id===projectId);
-    const list = state.entries[projectId] || [];
+    const list = scopeEntries(projectId).map(x => x.e);
     let rows;
     if(target === 'pending'){
       rows = getPendingSorted(projectId).filter(e => entryMatchesQuery(e, q));
@@ -667,15 +670,15 @@ function exportXlsx(target){
   }
   else if(target === 'all-pending' || target === 'all-done' || target === 'all-deleted'){
     const status = target === 'all-pending' ? null : (target === 'all-done' ? 'done' : 'deleted');
-    let rows = [];
-    PROJECTS.forEach(p => {
-      const list = state.entries[p.id] || [];
-      const matching = status
-        ? list.filter(e => e.status === status && entryMatchesQuery(e, q))
-        : getPendingSorted(p.id).filter(e => entryMatchesQuery(e, q));
-      matching.forEach(e => rows.push(entryToExportRow(e, p.name)));
-    });
-    const label = target === 'all-pending' ? 'Εκκρεμότητες όλων των έργων' : target === 'all-done' ? 'Ολοκληρωμένες όλων των έργων' : 'Διαγραμμένες όλων των έργων';
+    const scope = state.currentProject;
+    const tab = CHECK_TABS.find(t => t.id === scope);
+    const projName = pid => (PROJECTS.find(p => p.id === pid) || {}).name;
+    const matching = status
+      ? scopeEntries(scope).filter(({e}) => e.status === status && entryMatchesQuery(e, q))
+      : pendingInScope(scope).filter(({e}) => entryMatchesQuery(e, q));
+    const rows = matching.map(({e, projectId}) => entryToExportRow(e, projName(projectId)));
+    const what = target === 'all-pending' ? 'Εκκρεμότητες' : target === 'all-done' ? 'Ολοκληρωμένες' : 'Διαγραμμένες';
+    const label = tab ? `${tab.name} - ${what}` : `${what} όλων των έργων`;
     downloadXlsx(`${label}.xlsx`, label, rows);
   }
   else if(target === 'search'){
@@ -762,14 +765,11 @@ function printEntryRows(title, rows){
 
 function printCurrentPending(){
   const q = state.viewSearchQuery.trim().toLowerCase();
-  if(state.currentProject === ALL_ID){
-    let combined = [];
-    PROJECTS.forEach(p => {
-      getPendingSorted(p.id).filter(e => entryMatchesQuery(e, q)).forEach(e => combined.push({e, projectId: p.id}));
-    });
-    combined.sort((a,b)=> a.e.date < b.e.date ? -1 : a.e.date > b.e.date ? 1 : 0);
+  if(isMultiScope(state.currentProject)){
+    const tab = CHECK_TABS.find(t => t.id === state.currentProject);
+    const combined = pendingInScope(state.currentProject).filter(({e}) => entryMatchesQuery(e, q));
     const rows = combined.map((row,i) => ({e: row.e, priority: i+1, projLabel: (PROJECTS.find(p=>p.id===row.projectId)||{}).name}));
-    printEntryRows('Εκκρεμότητες — Όλα τα έργα', rows);
+    printEntryRows(`Εκκρεμότητες — ${tab ? tab.name : 'Όλα τα έργα'}`, rows);
   } else {
     const proj = PROJECTS.find(p=>p.id===state.currentProject);
     const pending = getPendingSorted(state.currentProject).filter(e => entryMatchesQuery(e, q));
@@ -1440,7 +1440,7 @@ function switchProject(id){
   state.membershipCompleteId = null;
   state.viewSearchQuery = '';
   state.changeTypeMenuOpen = false;
-  if(id === ALL_ID){
+  if(isMultiScope(id)){
     PROJECTS.forEach(p => loadEntries(p.id));
   } else {
     loadEntries(id);
@@ -1464,7 +1464,7 @@ function goToPage(page){
   flushPendingMembershipChecklist();
   state.membershipCompleteId = null;
   if(page === 'view'){
-    if(state.currentProject === ALL_ID){
+    if(isMultiScope(state.currentProject)){
       PROJECTS.forEach(p => loadEntries(p.id));
     } else {
       loadEntries(state.currentProject);
@@ -1788,9 +1788,53 @@ function renderEntry(e, projectId, priority, opts={}){
 
 const STATUS_LABEL = {pending:'Εκκρεμεί', partial:'Μερική ολοκλήρωση', done:'Ολοκληρώθηκε', deleted:'Διαγραμμένη'};
 
-function getPendingSorted(projectId){
-  return (state.entries[projectId]||[]).filter(e=>e.status==='pending' || e.status==='partial')
-    .sort((a,b)=> a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+// Special sidebar tabs next to the projects: a change request that has one
+// of these types ticked lives in that tab INSTEAD of in its project's list
+// (it keeps its projectId, shown as a badge). Routing is derived from
+// changeTypes, so adding/removing the type in Επεξεργασία moves it.
+const CHECK_TABS = [
+  {id:'check-surplus', typeId:'surplus_check', name:'ΕΛΕΓΧΟΣ ΠΕΡΙΣΣΕΥΜΑΤΟΣ', letter:'Π'},
+  {id:'check-offset', typeId:'offset_check', name:'ΕΛΕΓΧΟΣ ΣΥΜΨΗΦΙΣΜΟΥ', letter:'Ψ'},
+];
+
+// Id of the special tab this entry belongs to, or null if it stays in its project.
+function checkTabOf(e){
+  if(e.type === 'membership') return null;
+  const t = CHECK_TABS.find(t => (e.changeTypes||[]).includes(t.typeId));
+  return t ? t.id : null;
+}
+
+// Views that span several projects: "Όλα τα έργα" and the special tabs.
+function isMultiScope(id){
+  return id === ALL_ID || CHECK_TABS.some(t => t.id === id);
+}
+
+// Every entry visible in a view, as {e, projectId}. A project id or ALL_ID
+// excludes entries that belong to a special tab; a special tab id includes
+// only its own.
+function scopeEntries(scopeId){
+  const isCheck = CHECK_TABS.some(t => t.id === scopeId);
+  const projs = isMultiScope(scopeId) ? PROJECTS : PROJECTS.filter(p => p.id === scopeId);
+  const out = [];
+  projs.forEach(p => (state.entries[p.id]||[]).forEach(e => {
+    const ct = checkTabOf(e);
+    if(isCheck ? ct === scopeId : !ct) out.push({e, projectId: p.id});
+  }));
+  return out;
+}
+
+function pendingInScope(scopeId){
+  return scopeEntries(scopeId)
+    .filter(({e}) => e.status==='pending' || e.status==='partial')
+    .sort((a,b)=> a.e.date < b.e.date ? -1 : a.e.date > b.e.date ? 1 : 0);
+}
+
+function getPendingSorted(scopeId){
+  if(scopeId === MEMBERSHIP_BUCKET){
+    return (state.entries[scopeId]||[]).filter(e=>e.status==='pending' || e.status==='partial')
+      .sort((a,b)=> a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  }
+  return pendingInScope(scopeId).map(x => x.e);
 }
 
 function renderSearchResult(e, proj, priority){
@@ -1819,7 +1863,9 @@ function renderSearchResult(e, proj, priority){
     : '';
   const openButton = e.type === 'membership'
     ? `<button class="btn btn-sm btn-quiet" data-action="goto" data-page="membershipView">Άνοιγμα στα αιτήματα ένταξης →</button>`
-    : `<button class="btn btn-sm btn-quiet" data-action="open-in-project" data-id="${proj.id}">Άνοιγμα στο έργο →</button>`;
+    : (checkTabOf(e)
+        ? `<button class="btn btn-sm btn-quiet" data-action="open-in-project" data-id="${checkTabOf(e)}">Άνοιγμα στην καρτέλα →</button>`
+        : `<button class="btn btn-sm btn-quiet" data-action="open-in-project" data-id="${proj.id}">Άνοιγμα στο έργο →</button>`);
   return `
     <div class="entry ${cls}">
       <div class="entry-date">
@@ -1874,7 +1920,7 @@ function renderSearch(){
     resultsHtml = matches.length
       ? matches.map(m => {
           const priority = (m.e.status === 'pending' || m.e.status === 'partial')
-            ? getPendingSorted(m.proj.id).findIndex(x=>x.id===m.e.id) + 1
+            ? getPendingSorted(checkTabOf(m.e) || m.proj.id).findIndex(x=>x.id===m.e.id) + 1
             : null;
           return renderSearchResult(m.e, m.proj, priority);
         }).join('')
@@ -2464,15 +2510,14 @@ function hasActiveModalIn(list){
 
 function renderView(){
   const isAll = state.currentProject === ALL_ID;
-  const proj = isAll ? null : PROJECTS.find(p=>p.id===state.currentProject);
-  const loaded = isAll ? null : state.entries[state.currentProject];
-  const loading = isAll ? null : state.loading[state.currentProject];
+  const checkTab = CHECK_TABS.find(t => t.id === state.currentProject);
+  const isMulti = isAll || !!checkTab;
+  const proj = isMulti ? null : PROJECTS.find(p=>p.id===state.currentProject);
+  const loaded = isMulti ? null : state.entries[state.currentProject];
+  const loading = isMulti ? null : state.loading[state.currentProject];
   const allLoaded = PROJECTS.every(p => state.entries[p.id] !== undefined);
 
-  const allPendingCount = PROJECTS.reduce((sum,p) => {
-    const l = state.entries[p.id];
-    return sum + (l ? l.filter(e=>e.status==='pending'||e.status==='partial').length : 0);
-  }, 0);
+  const allPendingCount = pendingInScope(ALL_ID).length;
 
   const allTabStyle = state.currentProject===ALL_ID
     ? ` style="--tab-c:${TAB_COLORWAYS.all.c}; --tab-soft:${TAB_COLORWAYS.all.soft}; --tab-dark:${TAB_COLORWAYS.all.dark};"`
@@ -2486,7 +2531,7 @@ function renderView(){
 
   const tabsHtml = allTabHtml + PROJECTS.map(p=>{
     const list = state.entries[p.id];
-    const pendingCount = list ? list.filter(e=>e.status==='pending' || e.status==='partial').length : null;
+    const pendingCount = list ? pendingInScope(p.id).length : null;
     const active = p.id === state.currentProject;
     const cw = TAB_COLORWAYS[p.color];
     const style = active ? ` style="--tab-c:${cw.c}; --tab-soft:${cw.soft}; --tab-dark:${cw.dark};"` : '';
@@ -2496,11 +2541,22 @@ function renderView(){
         <span>${esc(p.name.replace(/^[ΑΒΓ]\s*/,''))}</span>
         ${pendingCount!==null ? `<span class="count ${pendingCount>0?'has-items':''}">${pendingCount}</span>` : ''}
       </button>`;
+  }).join('') + `<div class="tabs-sep"></div>` + CHECK_TABS.map(t => {
+    const active = t.id === state.currentProject;
+    const cw = TAB_COLORWAYS.all;
+    const style = active ? ` style="--tab-c:${cw.c}; --tab-soft:${cw.soft}; --tab-dark:${cw.dark};"` : '';
+    const count = allLoaded ? pendingInScope(t.id).length : null;
+    return `
+      <button class="tab ${active?'active':''}" data-action="switch" data-id="${t.id}"${style}>
+        <span class="letter">${t.letter}</span>
+        <span>${esc(t.name)}</span>
+        ${count!==null ? `<span class="count ${count>0?'has-items':''}">${count}</span>` : ''}
+      </button>`;
   }).join('');
 
   let mainHtml = '';
 
-  if(isAll){
+  if(isMulti){
     if(!allLoaded){
       mainHtml = `<div class="empty-state">Φόρτωση…</div>`;
     } else {
@@ -2508,11 +2564,7 @@ function renderView(){
       const hasFilter = !!q || !!state.viewDateFrom || !!state.viewDateTo || !!state.changeTypeFilter.length;
       const matches = e => entryMatchesQuery(e, q) && entryMatchesChangeTypeFilter(e);
 
-      let combinedPending = [];
-      PROJECTS.forEach(p => {
-        getPendingSorted(p.id).forEach(e => combinedPending.push({e, projectId: p.id}));
-      });
-      combinedPending.sort((a,b)=> a.e.date < b.e.date ? -1 : a.e.date > b.e.date ? 1 : 0);
+      const combinedPending = pendingInScope(state.currentProject);
       const pendingWithPriority = combinedPending.map((row,i) => ({...row, priority: i+1})).filter(({e}) => matches(e));
 
       let displayList = pendingWithPriority;
@@ -2522,21 +2574,16 @@ function renderView(){
         displayList = [...pendingWithPriority].reverse();
       }
 
-      let combinedDone = [];
-      let combinedDeleted = [];
-      PROJECTS.forEach(p => {
-        (state.entries[p.id]||[]).forEach(e => {
-          if(e.status==='done' && matches(e)) combinedDone.push({e, projectId:p.id});
-          if(e.status==='deleted' && matches(e)) combinedDeleted.push({e, projectId:p.id});
-        });
-      });
+      const scoped = scopeEntries(state.currentProject);
+      const combinedDone = scoped.filter(({e}) => e.status==='done' && matches(e));
+      const combinedDeleted = scoped.filter(({e}) => e.status==='deleted' && matches(e));
       combinedDone.sort((a,b)=> (b.e.completedDate||'').localeCompare(a.e.completedDate||''));
       combinedDeleted.sort((a,b)=> (b.e.deletedDate||'').localeCompare(a.e.deletedDate||''));
 
       const pendingHtml = displayList.length
         ? displayList.map(({e, projectId, priority}) => renderEntry(e, projectId, priority, {showProject:true})).join('')
         : (hasFilter ? `<div class="empty-state">Καμία εκκρεμότητα δεν ταιριάζει με τα φίλτρα${q ? ` ("${esc(state.viewSearchQuery.trim())}")` : ''}.</div>`
-             : `<div class="empty-state">Δεν υπάρχουν εκκρεμότητες σε κανένα έργο.</div>`);
+             : `<div class="empty-state">${checkTab ? 'Δεν υπάρχουν εκκρεμότητες σε αυτή την καρτέλα.<br>Εμφανίζονται εδώ τα αιτήματα αλλαγής που έχουν το είδος «' + esc(checkTab.name) + '».' : 'Δεν υπάρχουν εκκρεμότητες σε κανένα έργο.'}</div>`);
 
       const partialCount = combinedPending.filter(({e})=>e.status==='partial').length;
 
@@ -2549,15 +2596,15 @@ function renderView(){
         : (hasFilter ? `<div class="empty-state">Καμία διαγραμμένη δεν ταιριάζει με τα φίλτρα.</div>` : `<div class="empty-state">Καμία διαγραμμένη αλλαγή.</div>`);
 
       mainHtml = `
-        <div class="project-title">Όλα τα έργα</div>
+        <div class="project-title">${checkTab ? esc(checkTab.name) : 'Όλα τα έργα'}</div>
         <div class="project-sub">${combinedPending.length} εκκρεμότητ${combinedPending.length===1?'α':'ες'}${partialCount?` · ${partialCount} μερικ${partialCount===1?'ή':'ές'}`:''} · ${combinedDone.length} ολοκληρωμέν${combinedDone.length===1?'η':'ες'}${combinedDeleted.length ? ` · ${combinedDeleted.length} διαγραμμέν${combinedDeleted.length===1?'η':'ες'}` : ''}</div>
 
-        ${renderViewFilters('Αναζήτηση σε όλα τα έργα')}
+        ${renderViewFilters(checkTab ? 'Αναζήτηση σε αυτή την καρτέλα' : 'Αναζήτηση σε όλα τα έργα')}
 
         <section class="list-section">
           <div class="section-head">
             <h2>Εκκρεμότητες</h2>
-            <span class="muted">παλαιότερη πρώτη, από όλα τα έργα</span>
+            <span class="muted">${checkTab ? 'παλαιότερη πρώτη, από όλα τα έργα — το έργο φαίνεται σε κάθε αίτημα' : 'παλαιότερη πρώτη, από όλα τα έργα'}</span>
             <select id="in-view-sort" style="margin-left:auto;">
               <option value="priority" ${state.viewSort==='priority'?'selected':''}>Ταξινόμηση: Προτεραιότητα</option>
               <option value="alpha" ${state.viewSort==='alpha'?'selected':''}>Ταξινόμηση: Αλφαβητικά (Α-Ω)</option>
@@ -2598,8 +2645,9 @@ function renderView(){
       displayList = [...pendingWithPriority].reverse();
     }
 
-    const done = loaded.filter(e=>e.status==='done' && matches(e)).sort((a,b)=> (b.completedDate||'').localeCompare(a.completedDate||''));
-    const deleted = loaded.filter(e=>e.status==='deleted' && matches(e)).sort((a,b)=> (b.deletedDate||'').localeCompare(a.deletedDate||''));
+    const inProject = scopeEntries(state.currentProject).map(x => x.e);
+    const done = inProject.filter(e=>e.status==='done' && matches(e)).sort((a,b)=> (b.completedDate||'').localeCompare(a.completedDate||''));
+    const deleted = inProject.filter(e=>e.status==='deleted' && matches(e)).sort((a,b)=> (b.deletedDate||'').localeCompare(a.deletedDate||''));
 
     const pendingHtml = displayList.length
       ? displayList.map(({e, priority}) => renderEntry(e, state.currentProject, priority)).join('')
@@ -2966,7 +3014,7 @@ document.addEventListener('click', async (ev)=>{
     else if(action==='open-in-project'){
       state.currentProject = id;
       state.page = 'view';
-      loadEntries(id);
+      if(isMultiScope(id)) PROJECTS.forEach(p => loadEntries(p.id)); else loadEntries(id);
       render();
     }
     else if(action==='pick-suggestion') pickSuggestion(id);
