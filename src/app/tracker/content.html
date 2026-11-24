@@ -1788,20 +1788,27 @@ function renderEntry(e, projectId, priority, opts={}){
 
 const STATUS_LABEL = {pending:'Εκκρεμεί', partial:'Μερική ολοκλήρωση', done:'Ολοκληρώθηκε', deleted:'Διαγραμμένη'};
 
-// Special sidebar tabs next to the projects: a change request that has one
-// of these types ticked lives in that tab INSTEAD of in its project's list
-// (it keeps its projectId, shown as a badge). Routing is derived from
-// changeTypes, so adding/removing the type in Επεξεργασία moves it.
+// Special sidebar tabs next to the projects. A change request with one of
+// these types ticked appears in that tab. If ticked ONLY with check types
+// it lives there instead of its project's list; if it also has any other
+// type (διαμοιρασμός, αύξηση…) it appears in the project too. Routing is
+// derived from changeTypes, so editing the types moves/duplicates it.
 const CHECK_TABS = [
   {id:'check-surplus', typeId:'surplus_check', name:'ΕΛΕΓΧΟΣ ΠΕΡΙΣΣΕΥΜΑΤΟΣ', letter:'Π'},
   {id:'check-offset', typeId:'offset_check', name:'ΕΛΕΓΧΟΣ ΣΥΜΨΗΦΙΣΜΟΥ', letter:'Ψ'},
 ];
 
-// Id of the special tab this entry belongs to, or null if it stays in its project.
-function checkTabOf(e){
-  if(e.type === 'membership') return null;
-  const t = CHECK_TABS.find(t => (e.changeTypes||[]).includes(t.typeId));
-  return t ? t.id : null;
+// Ids of every special tab this entry appears in.
+function checkTabsOf(e){
+  if(e.type === 'membership') return [];
+  return CHECK_TABS.filter(t => (e.changeTypes||[]).includes(t.typeId)).map(t => t.id);
+}
+
+// Whether the entry shows in its project's list (and "Όλα τα έργα").
+function inProjectList(e){
+  if(!checkTabsOf(e).length) return true;
+  const checkTypeIds = CHECK_TABS.map(t => t.typeId);
+  return (e.changeTypes||[]).some(t => !checkTypeIds.includes(t));
 }
 
 // Views that span several projects: "Όλα τα έργα" and the special tabs.
@@ -1809,16 +1816,13 @@ function isMultiScope(id){
   return id === ALL_ID || CHECK_TABS.some(t => t.id === id);
 }
 
-// Every entry visible in a view, as {e, projectId}. A project id or ALL_ID
-// excludes entries that belong to a special tab; a special tab id includes
-// only its own.
+// Every entry visible in a view, as {e, projectId}.
 function scopeEntries(scopeId){
   const isCheck = CHECK_TABS.some(t => t.id === scopeId);
   const projs = isMultiScope(scopeId) ? PROJECTS : PROJECTS.filter(p => p.id === scopeId);
   const out = [];
   projs.forEach(p => (state.entries[p.id]||[]).forEach(e => {
-    const ct = checkTabOf(e);
-    if(isCheck ? ct === scopeId : !ct) out.push({e, projectId: p.id});
+    if(isCheck ? checkTabsOf(e).includes(scopeId) : inProjectList(e)) out.push({e, projectId: p.id});
   }));
   return out;
 }
@@ -1863,8 +1867,8 @@ function renderSearchResult(e, proj, priority){
     : '';
   const openButton = e.type === 'membership'
     ? `<button class="btn btn-sm btn-quiet" data-action="goto" data-page="membershipView">Άνοιγμα στα αιτήματα ένταξης →</button>`
-    : (checkTabOf(e)
-        ? `<button class="btn btn-sm btn-quiet" data-action="open-in-project" data-id="${checkTabOf(e)}">Άνοιγμα στην καρτέλα →</button>`
+    : (!inProjectList(e)
+        ? `<button class="btn btn-sm btn-quiet" data-action="open-in-project" data-id="${checkTabsOf(e)[0]}">Άνοιγμα στην καρτέλα →</button>`
         : `<button class="btn btn-sm btn-quiet" data-action="open-in-project" data-id="${proj.id}">Άνοιγμα στο έργο →</button>`);
   return `
     <div class="entry ${cls}">
@@ -1920,7 +1924,7 @@ function renderSearch(){
     resultsHtml = matches.length
       ? matches.map(m => {
           const priority = (m.e.status === 'pending' || m.e.status === 'partial')
-            ? getPendingSorted(checkTabOf(m.e) || m.proj.id).findIndex(x=>x.id===m.e.id) + 1
+            ? getPendingSorted(inProjectList(m.e) ? m.proj.id : checkTabsOf(m.e)[0]).findIndex(x=>x.id===m.e.id) + 1
             : null;
           return renderSearchResult(m.e, m.proj, priority);
         }).join('')
