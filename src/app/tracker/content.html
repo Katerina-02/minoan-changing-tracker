@@ -597,27 +597,73 @@ function renderName(obj){
 
 /* ---------- Excel export ---------- */
 
-function entryToExportRow(e, includeProjectLabel){
+// Columns that always appear in an entry export, even if empty. Every other
+// column is dropped when it's empty for all exported rows (e.g. the
+// "Ολοκληρώθηκε στις" column in a list of pending requests).
+const EXPORT_CORE_COLUMNS = new Set(['Σειρά προτεραιότητας','Ημερομηνία αιτήματος','Επώνυμο','Όνομα','ΑΦΜ','Αριθμός Παροχής','Έργο','Κατάσταση','Περιγραφή','Στοιχεία επικοινωνίας']);
+
+function entryFlagsLabel(e){
+  return [e.isVulnerable && 'Ευάλωτος καταναλωτής', e.isDistrictHeating && 'Τηλεθέρμανση', e.isArvi && 'Άρβη'].filter(Boolean).join(', ');
+}
+
+function partialNotesOf(e){
+  return (e.partialNotes && e.partialNotes.length) ? e.partialNotes : (e.partialNote ? [{date:e.date, text:e.partialNote}] : []);
+}
+
+// opts: {project: name, withPriority: bool, priority: number}
+function entryToExportRow(e, opts={}){
   const {last, first} = nameParts(e);
-  const notes = (e.partialNotes && e.partialNotes.length) ? e.partialNotes : (e.partialNote ? [{date:e.date, text:e.partialNote}] : []);
-  const row = {
-    'Ημερομηνία': toDisplayDate(e.date),
-    'Επώνυμο': last,
-    'Όνομα': first,
-    'ΑΦΜ': e.afm || '',
-    'Αριθμός Παροχής': e.supplyNumber || '',
-  };
-  if(includeProjectLabel !== undefined) row['Έργο'] = includeProjectLabel;
+  const isMembership = e.type === 'membership';
+  const row = {};
+  if(opts.withPriority) row['Σειρά προτεραιότητας'] = opts.priority || '';
+  row['Ημερομηνία αιτήματος'] = toDisplayDate(e.date);
+  row['Επώνυμο'] = last;
+  row['Όνομα'] = first;
+  row['ΑΦΜ'] = e.afm || '';
+  row['Αριθμός Παροχής'] = e.supplyNumber || '';
+  row['Έργο'] = opts.project || '';
+  row['Είδος αλλαγής'] = isMembership ? '' : changeTypesLabel(e);
+  row['Είδος παροχής'] = isMembership ? supplyTypeLabel(e) : '';
+  row['Ιδιότητες'] = isMembership ? entryFlagsLabel(e) : '';
   row['Κατάσταση'] = STATUS_LABEL[e.status] || e.status;
   row['Περιγραφή'] = e.description || '';
   row['Στοιχεία επικοινωνίας'] = e.contactInfo || '';
   row['Επικοινωνία με'] = e.contactPersonName || '';
+  row['Σχόλια μερικής εκτέλεσης'] = partialNotesOf(e).map(n => `${toDisplayDate(n.date)}: ${n.text}`).join(' | ');
+  row['Ολοκληρώθηκε στις'] = e.status === 'done' ? toDisplayDate(e.completedDate) : '';
+  row['Διαγράφηκε στις'] = e.status === 'deleted' ? toDisplayDate(e.deletedDate) : '';
+  row['Αιτιολογία διαγραφής'] = e.status === 'deleted' ? (e.deleteReason || '') : '';
+  row['Μήνες σε εκκρεμότητα'] = isStale(e) ? monthsActive(e) : '';
+  row['Αρ. Αναφοράς'] = refNumber(e);
   row['Σύνδεσμος αρχείου'] = e.fileUrl ? (window.location.origin + attachmentViewUrl(e)) : '';
   row['Καταχωρήθηκε από'] = e.createdByEmail ? creatorLabel(e.createdByEmail) : '';
-  if(e.status === 'partial') row['Σχόλια μερικής εκτέλεσης'] = notes.map(n => `${toDisplayDate(n.date)}: ${n.text}`).join(' | ');
-  if(e.status === 'done') row['Ολοκληρώθηκε στις'] = toDisplayDate(e.completedDate);
-  if(e.status === 'deleted'){ row['Διαγράφηκε στις'] = toDisplayDate(e.deletedDate); row['Αιτιολογία διαγραφής'] = e.deleteReason || ''; }
   return row;
+}
+
+function dropEmptyColumns(rows){
+  if(!rows.length) return rows;
+  const keep = Object.keys(rows[0]).filter(k => EXPORT_CORE_COLUMNS.has(k) || rows.some(r => r[k] !== '' && r[k] != null));
+  return rows.map(r => Object.fromEntries(keep.map(k => [k, r[k]])));
+}
+
+// Priority number (#N as shown in the view) of every pending/partial entry in a scope.
+function priorityMap(scopeId){
+  const m = new Map();
+  pendingInScope(scopeId).forEach(({e}, i) => m.set(e.id, i + 1));
+  return m;
+}
+
+// Priority of one entry within the list it's shown in (used by search results).
+function entryPriority(e, projectId){
+  if(e.status !== 'pending' && e.status !== 'partial') return null;
+  const scope = inProjectList(e) ? projectId : checkTabsOf(e)[0];
+  return getPendingSorted(scope).findIndex(x => x.id === e.id) + 1 || null;
+}
+
+// Priority of pending membership requests, as shown in "Αιτήματα νέων μελών".
+function membershipPendingSorted(){
+  return (state.entries[MEMBERSHIP_BUCKET]||[]).filter(e => e.status === 'pending')
+    .sort((a,b)=> a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 }
 
 function contactToExportRow(r){
@@ -659,14 +705,16 @@ function exportXlsx(target){
     const projectId = state.currentProject;
     const proj = PROJECTS.find(p=>p.id===projectId);
     const list = scopeEntries(projectId).map(x => x.e);
+    const pmap = priorityMap(projectId);
     let rows;
     if(target === 'pending'){
-      rows = getPendingSorted(projectId).filter(e => entryMatchesQuery(e, q));
+      rows = getPendingSorted(projectId).filter(e => (entryMatchesQuery(e, q) && entryMatchesChangeTypeFilter(e)));
     } else {
-      rows = list.filter(e => e.status === target && entryMatchesQuery(e, q));
+      rows = list.filter(e => e.status === target && (entryMatchesQuery(e, q) && entryMatchesChangeTypeFilter(e)));
     }
     const label = target === 'pending' ? 'Εκκρεμότητες' : target === 'done' ? 'Ολοκληρωμένες' : 'Διαγραμμένες';
-    downloadXlsx(`${proj.name} - ${label}.xlsx`, label, rows.map(e => entryToExportRow(e)));
+    downloadXlsx(`${proj.name} - ${label}.xlsx`, label, dropEmptyColumns(rows.map(e =>
+      entryToExportRow(e, {project: proj.name, withPriority: target === 'pending', priority: pmap.get(e.id)}))));
   }
   else if(target === 'all-pending' || target === 'all-done' || target === 'all-deleted'){
     const status = target === 'all-pending' ? null : (target === 'all-done' ? 'done' : 'deleted');
@@ -674,12 +722,26 @@ function exportXlsx(target){
     const tab = CHECK_TABS.find(t => t.id === scope);
     const projName = pid => (PROJECTS.find(p => p.id === pid) || {}).name;
     const matching = status
-      ? scopeEntries(scope).filter(({e}) => e.status === status && entryMatchesQuery(e, q))
-      : pendingInScope(scope).filter(({e}) => entryMatchesQuery(e, q));
-    const rows = matching.map(({e, projectId}) => entryToExportRow(e, projName(projectId)));
+      ? scopeEntries(scope).filter(({e}) => e.status === status && (entryMatchesQuery(e, q) && entryMatchesChangeTypeFilter(e)))
+      : pendingInScope(scope).filter(({e}) => (entryMatchesQuery(e, q) && entryMatchesChangeTypeFilter(e)));
+    const pmap = priorityMap(scope);
+    const rows = matching.map(({e, projectId}) =>
+      entryToExportRow(e, {project: projName(projectId), withPriority: !status, priority: pmap.get(e.id)}));
     const what = target === 'all-pending' ? 'Εκκρεμότητες' : target === 'all-done' ? 'Ολοκληρωμένες' : 'Διαγραμμένες';
     const label = tab ? `${tab.name} - ${what}` : `${what} όλων των έργων`;
-    downloadXlsx(`${label}.xlsx`, label, rows);
+    downloadXlsx(`${label}.xlsx`, label, dropEmptyColumns(rows));
+  }
+  else if(target === 'm-pending' || target === 'm-done' || target === 'm-deleted'){
+    const status = target.slice(2);
+    const all = state.entries[MEMBERSHIP_BUCKET] || [];
+    const pmap = new Map(membershipPendingSorted().map((e,i) => [e.id, i+1]));
+    const matches = e => entryMatchesQuery(e, q) && membershipEntryMatchesFilters(e);
+    const list = status === 'pending' ? membershipPendingSorted() : all.filter(e => e.status === status);
+    const rows = list.filter(matches).map(e =>
+      entryToExportRow(e, {project: MEMBERSHIP_PSEUDO_PROJECT.name, withPriority: status === 'pending', priority: pmap.get(e.id)}));
+    const what = status === 'pending' ? 'Εκκρεμή' : status === 'done' ? 'Ολοκληρωμένα' : 'Διαγραμμένα';
+    const label = `Αιτήματα νέων μελών - ${what}`;
+    downloadXlsx(`${label}.xlsx`, label, dropEmptyColumns(rows));
   }
   else if(target === 'search'){
     const sq = state.searchQuery.trim().toLowerCase();
@@ -688,15 +750,18 @@ function exportXlsx(target){
       (state.entries[p.id]||[]).forEach(e => {
         const nameHit = fullName(e).toLowerCase().includes(sq);
         const afmHit = e.afm && e.afm.includes(state.searchQuery.trim());
-        if(nameHit || afmHit) rows.push(entryToExportRow(e, p.name));
+        const refHit = refNumber(e).toLowerCase().includes(sq);
+        if(nameHit || afmHit || refHit) rows.push({e, row: entryToExportRow(e, {project: p.name, withPriority: true, priority: entryPriority(e, p.id)})});
       });
     });
     (state.entries[MEMBERSHIP_BUCKET]||[]).forEach(e => {
       const nameHit = fullName(e).toLowerCase().includes(sq);
       const afmHit = e.afm && e.afm.includes(state.searchQuery.trim());
-      if(nameHit || afmHit) rows.push(entryToExportRow(e, MEMBERSHIP_PSEUDO_PROJECT.name));
+      const refHit = refNumber(e).toLowerCase().includes(sq);
+      if(nameHit || afmHit || refHit) rows.push({e, row: entryToExportRow(e, {project: MEMBERSHIP_PSEUDO_PROJECT.name, withPriority: true, priority: entryPriority(e, MEMBERSHIP_BUCKET)})});
     });
-    downloadXlsx('Αναζήτηση αιτημάτων.xlsx', 'Αναζήτηση', rows);
+    rows.sort((a,b)=> a.e.date < b.e.date ? 1 : a.e.date > b.e.date ? -1 : 0);
+    downloadXlsx('Αναζήτηση αιτημάτων.xlsx', 'Αναζήτηση', dropEmptyColumns(rows.map(r => r.row)));
   }
   else if(target === 'contacts'){
     const cq = state.contactsSearchQuery.trim().toLowerCase();
@@ -721,16 +786,42 @@ function exportXlsx(target){
 /* ---------- Excel import ---------- */
 
 function printEntryRows(title, rows){
-  const rowsHtml = rows.map(({e, priority, projLabel}) => `
+  const rowsHtml = rows.map(({e, priority, projLabel}) => {
+    const isMembership = e.type === 'membership';
+    const notes = partialNotesOf(e);
+    const contact = [e.contactInfo, e.contactPersonName ? `(${e.contactPersonName})` : ''].filter(Boolean).join(' ');
+    const details = [
+      ['Αρ. Αναφοράς', refNumber(e)],
+      ['Κατάσταση', STATUS_LABEL[e.status] || e.status],
+      ['Ημ. αιτήματος', toDisplayDate(e.date)],
+      ['Ολοκληρώθηκε', e.status === 'done' ? toDisplayDate(e.completedDate) : ''],
+      ['Διαγράφηκε', e.status === 'deleted' ? toDisplayDate(e.deletedDate) : ''],
+      ['Αιτιολογία διαγραφής', e.status === 'deleted' ? e.deleteReason : ''],
+      ['Αρ. Παροχής', e.supplyNumber],
+      ['ΑΦΜ', e.afm],
+      ['Επικοινωνία', contact],
+      ['Είδος αλλαγής', isMembership ? '' : changeTypesLabel(e)],
+      ['Είδος παροχής', isMembership ? supplyTypeLabel(e) : ''],
+      ['Ιδιότητες', isMembership ? entryFlagsLabel(e) : ''],
+      ['Σε εκκρεμότητα', isStale(e) ? `${monthsActive(e)} μήνες` : ''],
+      ['Καταχωρήθηκε από', e.createdByEmail ? creatorLabel(e.createdByEmail) : ''],
+      ['Συνημμένο', e.fileName],
+    ].filter(([, v]) => v).map(([k, v]) => `<span class="p-kv"><b>${k}:</b> ${esc(String(v))}</span>`).join('');
+    const notesHtml = notes.length
+      ? `<div class="p-notes"><b>Σχόλια μερικής εκτέλεσης:</b>${notes.map(n => `<div>${toDisplayDate(n.date)}: ${esc(n.text)}</div>`).join('')}</div>`
+      : '';
+    return `
     <div class="p-entry">
       <div class="p-num">${priority ? '#'+priority : ''}</div>
       <div class="p-date">${toDisplayDate(e.date)}</div>
       <div class="p-body">
         <div class="p-name">${esc(fullName(e))}${projLabel ? ` — ${esc(projLabel)}` : ''}</div>
-        <div class="p-meta">${[e.supplyNumber ? `Παροχή ${esc(e.supplyNumber)}` : '', e.afm ? `ΑΦΜ ${esc(e.afm)}` : '', e.contactInfo ? esc(e.contactInfo) : ''].filter(Boolean).join(' · ')}</div>
-        <div class="p-desc">${esc(e.description)}</div>
+        <div class="p-meta">${details}</div>
+        ${e.description ? `<div class="p-desc">${esc(e.description)}</div>` : ''}
+        ${notesHtml}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   const html = `<!DOCTYPE html><html lang="el"><head><meta charset="UTF-8"><title>${esc(title)}</title>
 <style>
@@ -742,6 +833,8 @@ function printEntryRows(title, rows){
   .p-date{width:80px; flex-shrink:0; color:#333; font-size:13px;}
   .p-name{font-weight:700; font-size:14px;}
   .p-meta, .p-desc{font-size:12.5px; color:#222; margin-top:3px;}
+  .p-kv{display:inline-block; margin-right:14px;}
+  .p-notes{font-size:12px; color:#333; margin-top:5px; padding-left:8px; border-left:2px solid #bbb;}
   @media print{ body{padding:10mm;} }
 </style></head>
 <body>
@@ -765,15 +858,19 @@ function printEntryRows(title, rows){
 
 function printCurrentPending(){
   const q = state.viewSearchQuery.trim().toLowerCase();
-  if(isMultiScope(state.currentProject)){
+  if(state.page === 'membershipView'){
+    const rows = membershipPendingSorted()
+      .map((e,i) => ({e, priority: i+1}))
+      .filter(({e}) => entryMatchesQuery(e, q) && membershipEntryMatchesFilters(e));
+    printEntryRows('Εκκρεμή αιτήματα νέων μελών', rows);
+  } else if(isMultiScope(state.currentProject)){
     const tab = CHECK_TABS.find(t => t.id === state.currentProject);
-    const combined = pendingInScope(state.currentProject).filter(({e}) => entryMatchesQuery(e, q));
-    const rows = combined.map((row,i) => ({e: row.e, priority: i+1, projLabel: (PROJECTS.find(p=>p.id===row.projectId)||{}).name}));
-    printEntryRows(`Εκκρεμότητες — ${tab ? tab.name : 'Όλα τα έργα'}`, rows);
+    const combined = pendingInScope(state.currentProject).map((row,i) => ({e: row.e, priority: i+1, projLabel: (PROJECTS.find(p=>p.id===row.projectId)||{}).name}));
+    printEntryRows(`Εκκρεμότητες — ${tab ? tab.name : 'Όλα τα έργα'}`, combined.filter(({e}) => (entryMatchesQuery(e, q) && entryMatchesChangeTypeFilter(e))));
   } else {
     const proj = PROJECTS.find(p=>p.id===state.currentProject);
-    const pending = getPendingSorted(state.currentProject).filter(e => entryMatchesQuery(e, q));
-    const rows = pending.map((e,i) => ({e, priority: i+1}));
+    const rows = getPendingSorted(state.currentProject).map((e,i) => ({e, priority: i+1, projLabel: proj.name}))
+      .filter(({e}) => (entryMatchesQuery(e, q) && entryMatchesChangeTypeFilter(e)));
     printEntryRows(`Εκκρεμότητες — ${proj.name}`, rows);
   }
 }
@@ -2773,17 +2870,19 @@ function renderMembershipView(){
             <option value="alpha" ${state.viewSort==='alpha'?'selected':''}>Ταξινόμηση: Αλφαβητικά (Α-Ω)</option>
             <option value="newest" ${state.viewSort==='newest'?'selected':''}>Ταξινόμηση: Νεότερες πρώτα</option>
           </select>
+          <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="m-pending">⬇ Excel</button>
+          <button class="btn btn-sm btn-quiet" data-action="print-view">🖨 Λήψη για εκτύπωση</button>
         </div>
         ${pendingHtml}
       </section>
 
       <details class="completed-wrap" style="margin-bottom:10px;" ${(hasFilter && done.length) || hasActiveModalIn(done) ? 'open' : ''}>
-        <summary>Ολοκληρωμένα (${done.length})</summary>
+        <summary>Ολοκληρωμένα (${done.length}) <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="m-done" style="margin-left:10px;">⬇ Excel</button></summary>
         <div class="completed-body">${doneHtml}</div>
       </details>
 
       <details class="completed-wrap" ${(hasFilter && deleted.length) || hasActiveModalIn(deleted) ? 'open' : ''}>
-        <summary>Διαγραμμένα (${deleted.length})</summary>
+        <summary>Διαγραμμένα (${deleted.length}) <button class="btn btn-sm btn-quiet" data-action="export-xlsx" data-target="m-deleted" style="margin-left:10px;">⬇ Excel</button></summary>
         <div class="completed-body">${deletedHtml}</div>
       </details>
     </div>`;
